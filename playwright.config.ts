@@ -12,6 +12,9 @@ export default defineConfig({
       use: {
         ...devices["iPhone 13"],
         defaultBrowserType: "chromium",
+        // Headless Chromium in CI does not reliably grant clipboard writes from
+        // transient activation. WebKit does not support these permission names.
+        permissions: ["clipboard-read", "clipboard-write"],
         launchOptions: { executablePath: process.env.CHROMIUM_PATH },
       },
     },

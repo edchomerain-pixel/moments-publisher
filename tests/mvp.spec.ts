@@ -176,7 +176,7 @@ test("复制与文件分享不可用时给出手动操作提示，不改发布�
   await expect(page.getByRole("status")).toContainText("草稿已保存");
 });
 
-test("无图片草稿保存后重开并复制文案", async ({ page }) => {
+test("无图片草稿保存后重开并复制文案", async ({ page, browserName }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "＋ 新建商品", exact: true }).click();
   await page.getByLabel("商品名称 *", { exact: true }).fill("无图片草稿");
@@ -190,5 +190,12 @@ test("无图片草稿保存后重开并复制文案", async ({ page }) => {
     .getByRole("button", { name: "复制朋友圈文案", exact: true })
     .click();
   await expect(page.getByRole("status")).toContainText("文案已复制");
+  // Verify the real clipboard contents where Playwright can grant read access.
+  // WebKit still exercises the native write path above, with no API mock.
+  if (browserName === "chromium") {
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
+      "无图片草稿\n喜欢可私信了解细节。",
+    );
+  }
   await expect(page.getByLabel("发布状态")).toHaveValue("pending");
 });
