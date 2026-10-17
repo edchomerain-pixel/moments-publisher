@@ -37,24 +37,36 @@ npm run test:e2e   # 首次先运行 npx playwright install chromium webkit
 
 剪贴板和文件分享需 HTTPS 与用户点击触发。无法自动复制时会选中文案，请长按复制；不支持文件分享时使用 ZIP 导出。分享取消不会改动发布状态。
 
-## 部署
+## GitHub Pages 自动部署
 
-构建结果在 `dist/`，将目录整体部署到任意 HTTPS 静态托管（如 GitHub Pages、Cloudflare Pages、Netlify），无需后端。Service Worker 与资源应位于同一站点。
+生产路径固定为 `/moments-publisher/`（`vite.config.ts`），开发和预览也使用这个子路径。manifest 的启动地址、应用范围、Service Worker 范围、离线回退页及图标均位于该路径。`index.html` 的 Apple Touch 图标通过 `%BASE_URL%` 跟随配置，构建后的 JS/CSS 也使用该前缀。
 
-根域名：
+预期访问网址：**https://edchomerain-pixel.github.io/moments-publisher/**（请保留末尾斜杠）。
+
+部署步骤：
+
+1. 在仓库 **Settings → Pages → Build and deployment → Source** 选择 **GitHub Actions**（已设置时无需重复操作）。
+2. 审核并将本部署 PR 合并到 `main`。
+3. `main` 更新会自动触发 **Deploy to GitHub Pages**，依次执行 `npm ci`、格式检查、单元测试、构建，然后上传 `dist/` 并发布。也可在 Actions 中选择该工作流 → **Run workflow** → 选择 `main` 手动部署。
+4. 等待 `build` 和 `deploy` 均成功，在 `github-pages` 环境或工作流部署摘要中打开网站。如果该环境配置了审核人，需要批准部署任务。
+5. 在 iPhone Safari 打开上述 HTTPS 地址，确认商品编辑、图片、离线重开正常，再通过分享菜单添加到主屏幕。
+
+工作流使用 GitHub 官方 `configure-pages@v5`、`upload-pages-artifact@v3`、`deploy-pages@v4`。构建仅需 `contents: read` 与 `pages: read`；部署任务使用 `pages: write` 和 `id-token: write`，发布到 `github-pages` 环境，不需要自建 Token 或付费服务。部署只允许 `main`，PR 与开发分支不会发布。并发部署排队，避免中断已开始的发布。
+
+本地验证：
 
 ```bash
 npm ci
 npm run build
+npm test
+npm run preview
+# 打开 http://localhost:4173/moments-publisher/
+npm run test:e2e
 ```
 
-GitHub Pages 仓库子路径：
+浏览器测试以同一子路径运行，检查 manifest、JS/CSS、图标、Service Worker 资源均可访问，验证缓存范围及断网重载；CI 同时验证 Chromium 和 WebKit。若改用其他域名根目录或仓库名，需要同步调整 Vite base、PWA 范围和测试地址。
 
-```bash
-VITE_BASE_PATH=/moments-publisher/ npm run build
-```
-
-将生成的 `dist/` 发布到 Pages（仓库设置启用 Pages，使用静态站点构建/上传流程）。仓库提供 CI 基础检查工作流，未自动发布网站。请不要将源码目录直接当作生产站点发布。
+构建结果在 `dist/`，只发布该目录，不需要 `gh-pages` 分支或后端。首次真实 Pages 发布需在本 PR 合并后验证；分支上的构建检查不会提前发布网站。
 
 ## 本地数据与限制
 
