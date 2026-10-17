@@ -17,27 +17,87 @@ export interface Draft {
   status: "pending" | "published";
   updatedAt: number;
 }
+// Store image bytes rather than File/Blob handles. WebKit can reject the latter
+// with UnknownError while preparing the object-store write (including in private
+// browser contexts). Names, MIME types and byte contents remain unchanged.
+interface StoredPhoto {
+  id: string;
+  name: string;
+  type: string;
+  bytes: ArrayBuffer;
+}
+type StoredDraft = Omit<Draft, "photos"> & {
+  // Version 1 records containing Blob/File remain readable; no destructive
+  // database migration is required for this value-format change.
+  photos: (StoredPhoto | Photo)[];
+};
 interface Store extends DBSchema {
-  drafts: { key: string; value: Draft };
+  drafts: { key: string; value: StoredDraft };
 }
 let connection: Promise<IDBPDatabase<Store>> | undefined;
-const db = () =>
-  (connection ??= openDB<Store>("moments-publisher", 1, {
-    upgrade(db) {
-      db.createObjectStore("drafts", { keyPath: "id" });
-    },
-  }));
+function db(): Promise<IDBPDatabase<Store>> {
+  if (!connection) {
+    const opening = openDB<Store>("moments-publisher", 1, {
+      upgrade(database, oldVersion) {
+        if (oldVersion < 1) {
+          database.createObjectStore("drafts", { keyPath: "id" });
+        }
+      },
+      blocking() {
+        // A newer app version in another tab must be allowed to upgrade.
+        void opening.then((database) => database.close());
+        if (connection === opening) connection = undefined;
+      },
+      terminated() {
+        if (connection === opening) connection = undefined;
+      },
+    });
+    connection = opening;
+    // A denied/failed open should not poison every later attempt in this page.
+    void opening.catch(() => {
+      if (connection === opening) connection = undefined;
+    });
+  }
+  return connection;
+}
+function restoreDraft(stored: StoredDraft): Draft {
+  return {
+    ...stored,
+    photos: stored.photos.map((photo) =>
+      "bytes" in photo
+        ? {
+            id: photo.id,
+            name: photo.name,
+            blob: new Blob([photo.bytes], { type: photo.type }),
+          }
+        : photo,
+    ),
+  };
+}
 export const repository = {
-  async all() {
-    return (await (await db()).getAll("drafts")).sort(
-      (a, b) => b.updatedAt - a.updatedAt,
-    );
+  async all(): Promise<Draft[]> {
+    const stored = await (await db()).getAll("drafts");
+    return stored.map(restoreDraft).sort((a, b) => b.updatedAt - a.updatedAt);
   },
   async save(draft: Draft) {
-    await (await db()).put("drafts", draft);
+    const photos: StoredPhoto[] = [];
+    // File reads are asynchronous tasks. Finish them BEFORE opening the IDB
+    // transaction: awaiting them inside it lets Safari auto-commit the transaction.
+    for (const photo of draft.photos) {
+      photos.push({
+        id: photo.id,
+        name: photo.name,
+        type: photo.blob.type,
+        bytes: await photo.blob.arrayBuffer(),
+      });
+    }
+    const stored: StoredDraft = { ...draft, photos };
+    const transaction = (await db()).transaction("drafts", "readwrite");
+    await Promise.all([transaction.store.put(stored), transaction.done]);
   },
   async remove(id: string) {
-    await (await db()).delete("drafts", id);
+    const transaction = (await db()).transaction("drafts", "readwrite");
+    await Promise.all([transaction.store.delete(id), transaction.done]);
   },
 };
 export function newDraft(): Draft {

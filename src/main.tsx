@@ -64,7 +64,11 @@ function App() {
   }
   async function persist(d: Draft) {
     await repository.save(d);
-    setDrafts(await repository.all());
+    setDrafts((existing) =>
+      [d, ...existing.filter((item) => item.id !== d.id)].sort(
+        (a, b) => b.updatedAt - a.updatedAt,
+      ),
+    );
   }
   async function save() {
     if (!current) return;
@@ -208,7 +212,7 @@ function App() {
     try {
       if (type === "delete") {
         await repository.remove(d.id);
-        setDrafts(await repository.all());
+        setDrafts((existing) => existing.filter((item) => item.id !== d.id));
       } else
         await persist(
           type === "copy"

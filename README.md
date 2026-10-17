@@ -1,6 +1,6 @@
 # 拾光 · 朋友圈商品发布助手
 
-适合 iPhone Safari 的 React + TypeScript + Vite PWA。无需服务器、账号、数据库服务或付费 API。商品、文案及原始图片 Blob 保存在当前浏览器的 IndexedDB，不会上传图片。
+适合 iPhone Safari 的 React + TypeScript + Vite PWA。无需服务器、账号、数据库服务或付费 API。商品、文案及原始图片字节保存在当前浏览器的 IndexedDB，不会上传图片。
 
 ## 本地运行
 
@@ -60,7 +60,8 @@ VITE_BASE_PATH=/moments-publisher/ npm run build
 
 - 数据绑定当前设备、浏览器及站点来源；HTTP/HTTPS、域名、端口或 Safari/主屏幕应用上下文的变化可能影响可见数据，不提供跨设备同步。
 - 清除网站数据、卸载、隐私模式、系统回收存储可能导致数据丢失。请求持久存储不保证浏览器批准。重要图片请导出、文案请另存。
-- 保存等待 IndexedDB 事务完成后才提示成功，读写失败会提示；没有服务器备份。
+- 保存等待 IndexedDB 事务完成后才提示成功，读写失败会按空间不足、权限、图片读取、事务中断或未知异常分别提示；没有服务器备份。
+- 为兼容 WebKit 的 Blob/File 写入限制，图片在开启写事务前读取为 ArrayBuffer，文件名与 MIME 类型单独保存，重开时还原为 Blob。保留原始字节和顺序，兼容旧版 Blob 草稿，不清空数据库；旧草稿下次保存时采用新格式。
 - 第一版未包含整库备份/恢复、云同步、图片裁剪压缩、拖拽排序、批量发布和 AI 联网生成。没有微信自动发布功能。
 - 自动浏览器测试不能替代真机验证。iOS 相册选择、系统分享、添加主屏幕和实际微信发布需在真实 iPhone 上验收。
 
@@ -70,6 +71,7 @@ VITE_BASE_PATH=/moments-publisher/ npm run build
 - `src/model.ts`：类型、IndexedDB、文案及搜索逻辑
 - `src/style.css`：移动端优先布局及 iPhone 安全区
 - `vite.config.ts`、`public/icons/`：PWA 与离线预缓存
-- `src/model.test.ts`、`tests/`：基础检查与浏览器流程
+- `src/model.test.ts`、`src/storage-errors.test.ts`、`tests/`：存储兼容性、错误分类及 Chromium/WebKit 浏览器流程
+- CI 失败时保留浏览器错误名称、截图及 Playwright trace（Actions 附件，保留 7 天）；诊断日志不输出商品内容或图片数据
 
 受限环境若无法下载 Playwright 浏览器，但已安装 Chromium，可运行 `CHROMIUM_PATH=/usr/bin/chromium npm run test:e2e -- --project=chromium`。这不替代 WebKit 与 iPhone 真机检查。

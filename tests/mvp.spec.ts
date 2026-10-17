@@ -65,6 +65,27 @@ test("手机草稿编辑、九图限制、排序、持久化、筛选与复制�
   await expect(page.getByRole("textbox", { name: "朋友圈文案" })).toHaveValue(
     "手动编辑的文案",
   );
+  await expect
+    .poll(() =>
+      page
+        .locator(".photo img")
+        .first()
+        .evaluate((img) => (img as HTMLImageElement).naturalWidth),
+    )
+    .toBe(1);
+  await page
+    .getByRole("textbox", { name: "备注", exact: true })
+    .fill("再次编辑后保存");
+  await page.getByRole("button", { name: "保存草稿", exact: true }).click();
+  await expect(page.getByRole("status")).toContainText("草稿已保存");
+  await page.reload();
+  await page
+    .getByRole("button", { name: "编辑 经典手袋", exact: true })
+    .click();
+  await expect(
+    page.getByRole("textbox", { name: "备注", exact: true }),
+  ).toHaveValue("再次编辑后保存");
+  await expect(page.locator(".photo")).toHaveCount(8);
   const download = page.waitForEvent("download");
   await page
     .getByRole("button", { name: "导出图片 ZIP ↓", exact: true })
@@ -153,4 +174,21 @@ test("复制与文件分享不可用时给出手动操作提示，不改发布�
   await expect(page.getByLabel("发布状态")).toHaveValue("pending");
   await page.getByRole("button", { name: "保存草稿", exact: true }).click();
   await expect(page.getByRole("status")).toContainText("草稿已保存");
+});
+
+test("无图片草稿保存后重开并复制文案", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "＋ 新建商品", exact: true }).click();
+  await page.getByLabel("商品名称 *", { exact: true }).fill("无图片草稿");
+  await page.getByRole("button", { name: "保存草稿", exact: true }).click();
+  await expect(page.getByRole("status")).toContainText("草稿已保存");
+  await page.reload();
+  await page
+    .getByRole("button", { name: "编辑 无图片草稿", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "复制朋友圈文案", exact: true })
+    .click();
+  await expect(page.getByRole("status")).toContainText("文案已复制");
+  await expect(page.getByLabel("发布状态")).toHaveValue("pending");
 });

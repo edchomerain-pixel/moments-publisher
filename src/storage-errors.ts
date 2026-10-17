@@ -16,6 +16,8 @@ export function storageErrorMessage(error: unknown, action: string): string {
     case "SecurityError":
     case "NotAllowedError":
       return `${prefix}：浏览器未允许本地存储，请检查 Safari 网站权限或隐私模式设置。`;
+    case "NotReadableError":
+      return `${prefix}：无法读取图片文件。请保留当前页面并重新选择该图片后重试。`;
     case "DataCloneError":
       return `${prefix}：浏览器无法序列化图片数据。请保留当前页面并导出图片后重试。`;
     case "AbortError":

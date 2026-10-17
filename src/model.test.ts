@@ -72,3 +72,86 @@ describe("商品草稿", () => {
     expect((await repository.all()).some((x) => x.id === d.id)).toBe(false);
   });
 });
+
+describe("Safari 图片存储回归", () => {
+  it("将 File 保存为字节，重读仍保留名称、MIME 和原始内容", async () => {
+    const file = new File([new Uint8Array([0, 128, 255])], "原图.png", {
+      type: "image/png",
+    });
+    const draft = {
+      ...newDraft(),
+      photos: [{ id: "file", name: file.name, blob: file }],
+    };
+    await repository.save(draft);
+    const { openDB } = await import("idb");
+    const raw = await openDB("moments-publisher", 1);
+    try {
+      const stored = await raw.get("drafts", draft.id);
+      expect(stored.photos[0].blob).toBeUndefined();
+      expect(stored.photos[0].bytes).toBeInstanceOf(ArrayBuffer);
+      const reopened = (await repository.all()).find((d) => d.id === draft.id)!;
+      expect(reopened.photos[0].name).toBe("原图.png");
+      expect(reopened.photos[0].blob.type).toBe("image/png");
+      expect(
+        new Uint8Array(await reopened.photos[0].blob.arrayBuffer()),
+      ).toEqual(new Uint8Array([0, 128, 255]));
+    } finally {
+      raw.close();
+      await repository.remove(draft.id);
+    }
+  });
+
+  it("读取旧版 Blob 草稿，再次保存时转为新格式而不丢数据", async () => {
+    const { openDB } = await import("idb");
+    const legacy = {
+      ...newDraft(),
+      name: "旧版草稿",
+      photos: [
+        {
+          id: "legacy",
+          name: "legacy.jpg",
+          blob: new Blob(["legacy bytes"], { type: "image/jpeg" }),
+        },
+      ],
+    };
+    const raw = await openDB("moments-publisher", 1);
+    try {
+      await raw.put("drafts", legacy);
+      const reopened = (await repository.all()).find(
+        (d) => d.id === legacy.id,
+      )!;
+      expect(await reopened.photos[0].blob.text()).toBe("legacy bytes");
+      await repository.save({ ...reopened, notes: "已编辑" });
+      const stored = await raw.get("drafts", legacy.id);
+      expect(stored.photos[0].bytes).toBeInstanceOf(ArrayBuffer);
+      expect(stored.notes).toBe("已编辑");
+      const updated = (await repository.all()).find((d) => d.id === legacy.id)!;
+      expect(updated.photos[0].blob.type).toBe("image/jpeg");
+      expect(await updated.photos[0].blob.text()).toBe("legacy bytes");
+    } finally {
+      raw.close();
+      await repository.remove(legacy.id);
+    }
+  });
+
+  it("图片读取失败时不覆盖已提交的草稿", async () => {
+    const draft = { ...newDraft(), name: "原草稿" };
+    await repository.save(draft);
+    const photo = new Blob(["unreadable"]);
+    Object.defineProperty(photo, "arrayBuffer", {
+      value: () =>
+        Promise.reject(new DOMException("read failure", "NotReadableError")),
+    });
+    await expect(
+      repository.save({
+        ...draft,
+        name: "未完成修改",
+        photos: [{ id: "bad", name: "bad.jpg", blob: photo }],
+      }),
+    ).rejects.toMatchObject({ name: "NotReadableError" });
+    expect((await repository.all()).find((d) => d.id === draft.id)?.name).toBe(
+      "原草稿",
+    );
+    await repository.remove(draft.id);
+  });
+});
