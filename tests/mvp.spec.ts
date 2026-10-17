@@ -12,7 +12,7 @@ test.beforeEach(async ({ page }) => {
 test("手机草稿编辑、九图限制、排序、持久化、筛选与复制删除", async ({
   page,
 }) => {
-  await page.goto("/");
+  await page.goto("./");
   await page.getByRole("button", { name: "＋ 新建商品", exact: true }).click();
   await page.getByLabel("商品名称 *", { exact: true }).fill("经典手袋");
   await page.getByLabel("品牌", { exact: true }).fill("CHANEL");
@@ -116,7 +116,7 @@ test("手机草稿编辑、九图限制、排序、持久化、筛选与复制�
   ).toBe(true);
 });
 test("安装资源及离线应用壳可用", async ({ page, context }) => {
-  await page.goto("/");
+  await page.goto("./");
   await page.evaluate(async () => {
     await navigator.serviceWorker.ready;
   });
@@ -128,6 +128,41 @@ test("安装资源及离线应用壳可用", async ({ page, context }) => {
     .locator("link[rel=manifest]")
     .getAttribute("href");
   expect(manifest).toBeTruthy();
+  const manifestURL = new URL(manifest!, page.url());
+  expect(manifestURL.pathname).toBe("/moments-publisher/manifest.webmanifest");
+  const response = await page.request.get(manifestURL.href);
+  expect(response.ok()).toBe(true);
+  const metadata = await response.json();
+  expect(metadata.start_url).toBe("/moments-publisher/");
+  expect(metadata.scope).toBe("/moments-publisher/");
+  const registration = await page.evaluate(async () => {
+    const ready = await navigator.serviceWorker.ready;
+    return { scope: ready.scope, script: ready.active?.scriptURL };
+  });
+  expect(new URL(registration.scope).pathname).toBe("/moments-publisher/");
+  expect(new URL(registration.script!).pathname).toBe(
+    "/moments-publisher/sw.js",
+  );
+  const assets = await page
+    .locator(
+      'script[src], link[rel="stylesheet"], link[rel="apple-touch-icon"], link[rel="icon"]',
+    )
+    .evaluateAll((nodes) =>
+      nodes.map(
+        (node) => node.getAttribute("src") || node.getAttribute("href"),
+      ),
+    );
+  for (const asset of [
+    ...assets,
+    ...metadata.icons.map((icon: { src: string }) => icon.src),
+    registration.script,
+  ]) {
+    const url = new URL(asset!, page.url());
+    expect(url.pathname).toMatch(/^\/moments-publisher\//);
+    const assetResponse = await page.request.get(url.href);
+    expect(assetResponse.ok()).toBe(true);
+    expect(assetResponse.headers()["content-type"]).not.toContain("text/html");
+  }
   await context.setOffline(true);
   await page.reload();
   await expect(
@@ -151,7 +186,7 @@ test("复制与文件分享不可用时给出手动操作提示，不改发布�
       configurable: true,
     });
   });
-  await page.goto("/");
+  await page.goto("./");
   await page.getByRole("button", { name: "＋ 新建商品", exact: true }).click();
   await page.getByRole("button", { name: "保存草稿", exact: true }).click();
   await expect(page.getByRole("status")).toContainText("请先填写商品名称");
@@ -177,7 +212,7 @@ test("复制与文件分享不可用时给出手动操作提示，不改发布�
 });
 
 test("无图片草稿保存后重开并复制文案", async ({ page, browserName }) => {
-  await page.goto("/");
+  await page.goto("./");
   await page.getByRole("button", { name: "＋ 新建商品", exact: true }).click();
   await page.getByLabel("商品名称 *", { exact: true }).fill("无图片草稿");
   await page.getByRole("button", { name: "保存草稿", exact: true }).click();
