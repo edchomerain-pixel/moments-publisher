@@ -1,4 +1,14 @@
 import { test, expect } from "@playwright/test";
+
+test.beforeEach(async ({ page }) => {
+  page.on("console", (message) => {
+    if (message.type() === "error")
+      console.error(`[browser] ${message.text()}`);
+  });
+  page.on("pageerror", (error) =>
+    console.error(`[pageerror] ${error.name}: ${error.message}`),
+  );
+});
 test("手机草稿编辑、九图限制、排序、持久化、筛选与复制删除", async ({
   page,
 }) => {

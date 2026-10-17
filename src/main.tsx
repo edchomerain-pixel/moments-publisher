@@ -12,6 +12,7 @@ import {
   type Photo,
 } from "./model";
 import "./style.css";
+import { storageErrorMessage } from "./storage-errors";
 function PhotoView({ photo }: { photo: Photo }) {
   const [url, setUrl] = useState("");
   useEffect(() => {
@@ -38,7 +39,7 @@ function App() {
     repository
       .all()
       .then(setDrafts)
-      .catch(() => notify("无法读取本地草稿，请检查 Safari 存储权限后刷新。"))
+      .catch((error) => notify(storageErrorMessage(error, "读取草稿")))
       .finally(() => setLoading(false));
   }, []);
   useEffect(() => {
@@ -90,8 +91,8 @@ function App() {
       setDirty(false);
       notify("草稿已保存到此设备。");
       void navigator.storage?.persist?.().catch(() => {});
-    } catch {
-      notify("保存失败，可能存储空间不足。请保留当前页面并导出图片。");
+    } catch (error) {
+      notify(storageErrorMessage(error, "保存草稿"));
     } finally {
       setBusy(false);
     }
@@ -225,8 +226,8 @@ function App() {
             ? "草稿已删除。"
             : "发布状态已更新。",
       );
-    } catch {
-      notify("操作失败，请检查本地存储空间后重试。");
+    } catch (error) {
+      notify(storageErrorMessage(error, "操作草稿"));
     } finally {
       setBusy(false);
     }
