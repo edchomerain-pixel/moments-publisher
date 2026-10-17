@@ -133,6 +133,12 @@ test("安装资源及离线应用壳可用", async ({ page, context }) => {
   const response = await page.request.get(manifestURL.href);
   expect(response.ok()).toBe(true);
   const metadata = await response.json();
+  expect(metadata.name).toBe("巴商相册");
+  expect(metadata.short_name).toBe("巴商相册");
+  await expect(page).toHaveTitle("巴商相册");
+  await expect(
+    page.locator('meta[name="apple-mobile-web-app-title"]'),
+  ).toHaveAttribute("content", "巴商相册");
   expect(metadata.start_url).toBe("/moments-publisher/");
   expect(metadata.scope).toBe("/moments-publisher/");
   const registration = await page.evaluate(async () => {

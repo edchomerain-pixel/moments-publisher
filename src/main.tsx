@@ -252,10 +252,7 @@ function App() {
             }
           }}
         >
-          <span className="logo-icon">拾</span>
-          <span>
-            拾光<small>MOMENTS STUDIO</small>
-          </span>
+          <span>巴商相册</span>
         </a>
         <button className="quiet" onClick={() => setHelp(!help)}>
           使用指南 ↗
@@ -641,7 +638,7 @@ function App() {
           </>
         )}
         <footer>
-          拾光 MOMENTS STUDIO <span>用心整理 · 自在分享</span>
+          巴商相册 <span>用心整理 · 自在分享</span>
         </footer>
       </main>
     </>

@@ -1,4 +1,4 @@
-# 拾光 · 朋友圈商品发布助手
+# 巴商相册
 
 适合 iPhone Safari 的 React + TypeScript + Vite PWA。无需服务器、账号、数据库服务或付费 API。商品、文案及原始图片字节保存在当前浏览器的 IndexedDB，不会上传图片。
 
@@ -87,3 +87,11 @@ npm run test:e2e
 - CI 失败时保留浏览器错误名称、截图及 Playwright trace（Actions 附件，保留 7 天）；诊断日志不输出商品内容或图片数据
 
 受限环境若无法下载 Playwright 浏览器，但已安装 Chromium，可运行 `CHROMIUM_PATH=/usr/bin/chromium npm run test:e2e -- --project=chromium`。这不替代 WebKit 与 iPhone 真机检查。
+
+## 品牌更新（待提供正式 LOGO）
+
+页面标题、页头、页脚、manifest 名称与 iOS 主屏幕名称已更新为「巴商相册」。当前仓库没有用户指定的白底绿色渐变抽象 B 形 LOGO，原有安装图标尚未替换，此品牌变更应保持草稿 PR，等待原图后完成。
+
+请提供 `public/branding/bashang-logo.png`（建议至少 1024×1024 的正方形白底 PNG，图标内部不含文字），或同名 SVG 矢量源文件。收到后再制作 favicon、180px Apple Touch Icon、192/512px PWA 图标；不会自行绘制替代 LOGO。
+
+保留 IndexedDB 名称及版本、manifest id/start_url/scope 和站点路径，已有草稿不会因更名被重置。更新沿用当前 Service Worker 生命周期：保存编辑内容后，关闭所有站点及主屏幕窗口，再联网重新打开以加载新版本。iOS 已安装的主屏幕名称和图标可能保留安装时的快照，需要真机检查。不要为更新图标清除网站数据；未另行备份前也不要删除主屏幕应用。

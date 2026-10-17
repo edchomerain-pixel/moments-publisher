@@ -64,23 +64,6 @@ header {
   font-weight: 650;
   letter-spacing: 3px;
 }
-.logo-icon {
-  background: #243c34;
-  color: #f4efdd;
-  border-radius: 12px;
-  width: 44px;
-  height: 44px;
-  display: grid;
-  place-items: center;
-  font-family: serif;
-}
-.logo small {
-  display: block;
-  font-size: 9px;
-  letter-spacing: 2px;
-  margin-top: 4px;
-  font-weight: 400;
-}
 .quiet {
   background: transparent;
   border: none;
