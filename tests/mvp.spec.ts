@@ -1,4 +1,11 @@
 import { test, expect } from "@playwright/test";
+import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
+
+const iconVersion = createHash("sha256")
+  .update(readFileSync("public/branding/bashang-logo.png"))
+  .digest("hex")
+  .slice(0, 8);
 
 test.beforeEach(async ({ page }) => {
   page.on("console", (message) => {
@@ -139,6 +146,25 @@ test("安装资源及离线应用壳可用", async ({ page, context }) => {
   await expect(
     page.locator('meta[name="apple-mobile-web-app-title"]'),
   ).toHaveAttribute("content", "巴商相册");
+  expect(metadata.id).toBe("/moments-publisher/");
+  expect(metadata.icons.map((icon: { src: string }) => icon.src)).toEqual(
+    [192, 512].map(
+      (size) => `/moments-publisher/icons/bashang-${iconVersion}-${size}.png`,
+    ),
+  );
+  await expect(page.locator(".brand-logo")).toBeVisible();
+  await expect(page.locator(".brand-logo")).toHaveAttribute(
+    "src",
+    `/moments-publisher/icons/bashang-${iconVersion}-192.png`,
+  );
+  await expect(page.locator('link[rel="icon"]')).toHaveAttribute(
+    "href",
+    `/moments-publisher/icons/bashang-${iconVersion}-32.png`,
+  );
+  await expect(page.locator('link[rel="apple-touch-icon"]')).toHaveAttribute(
+    "href",
+    `/moments-publisher/icons/bashang-${iconVersion}-180.png`,
+  );
   expect(metadata.start_url).toBe("/moments-publisher/");
   expect(metadata.scope).toBe("/moments-publisher/");
   const registration = await page.evaluate(async () => {
@@ -174,6 +200,20 @@ test("安装资源及离线应用壳可用", async ({ page, context }) => {
   await expect(
     page.getByRole("button", { name: "＋ 新建商品", exact: true }),
   ).toBeVisible();
+  // Decode the actual versioned files offline: this catches invalid PNGs, wrong
+  // dimensions and new icon URLs missing from the Service Worker precache.
+  for (const size of [32, 180, 192, 512]) {
+    const dimensions = await page.evaluate(
+      async ({ size, version }) => {
+        const image = new Image();
+        image.src = `/moments-publisher/icons/bashang-${version}-${size}.png`;
+        await image.decode();
+        return [image.naturalWidth, image.naturalHeight];
+      },
+      { size, version: iconVersion },
+    );
+    expect(dimensions).toEqual([size, size]);
+  }
 });
 
 test("复制与文件分享不可用时给出手动操作提示，不改发布状态", async ({

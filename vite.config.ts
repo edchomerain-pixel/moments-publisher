@@ -24,15 +24,15 @@ export default defineConfig({
         theme_color: "#243c34",
         icons: [
           {
-            src: `${base}icons/icon-192.png`,
+            src: `${base}icons/bashang-24e3ccde-192.png`,
             sizes: "192x192",
             type: "image/png",
           },
           {
-            src: `${base}icons/icon-512.png`,
+            src: `${base}icons/bashang-24e3ccde-512.png`,
             sizes: "512x512",
             type: "image/png",
-            purpose: "any maskable",
+            purpose: "any",
           },
         ],
       },

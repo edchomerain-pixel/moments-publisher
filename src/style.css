@@ -638,3 +638,10 @@ fieldset.editor-layout {
   margin: 0;
   min-width: 0;
 }
+
+.brand-logo {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  object-fit: contain;
+}

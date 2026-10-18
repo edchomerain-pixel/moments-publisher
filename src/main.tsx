@@ -252,6 +252,13 @@ function App() {
             }
           }}
         >
+          <img
+            className="brand-logo"
+            src={`${import.meta.env.BASE_URL}icons/bashang-24e3ccde-192.png`}
+            width="44"
+            height="44"
+            alt=""
+          />
           <span>巴商相册</span>
         </a>
         <button className="quiet" onClick={() => setHelp(!help)}>
