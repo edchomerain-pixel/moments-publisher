@@ -1,4 +1,4 @@
-# 拾光 · 朋友圈商品发布助手
+# 巴商相册
 
 适合 iPhone Safari 的 React + TypeScript + Vite PWA。无需服务器、账号、数据库服务或付费 API。商品、文案及原始图片字节保存在当前浏览器的 IndexedDB，不会上传图片。
 
@@ -87,3 +87,18 @@ npm run test:e2e
 - CI 失败时保留浏览器错误名称、截图及 Playwright trace（Actions 附件，保留 7 天）；诊断日志不输出商品内容或图片数据
 
 受限环境若无法下载 Playwright 浏览器，但已安装 Chromium，可运行 `CHROMIUM_PATH=/usr/bin/chromium npm run test:e2e -- --project=chromium`。这不替代 WebKit 与 iPhone 真机检查。
+
+## 巴商相册品牌及图标更新
+
+正式原图为 `public/branding/bashang-logo.png`（用户上传的 1024×1024 白底绿色渐变 B 形 PNG）。网页顶部、32px favicon、180px Apple Touch Icon、192/512px PWA 图标均直接按原图缩放，没有重新设计、裁切或添加文字。manifest 图标声明为 `any`，避免系统按 maskable 安全区裁切原有图案。
+
+图标 URL 使用源文件 SHA-256 前 8 位作为版本：`icons/bashang-24e3ccde-{尺寸}.png`。更换图标时先用 ImageMagick 运行 `bash scripts/generate-icons.sh`，然后同步更新 `src/main.tsx`、`index.html`、`vite.config.ts` 中的版本路径；图标在 Git 中提交，生产构建不依赖 ImageMagick。原来的三个安装图标 URL 也已替换为正式原图的缩放版本，兼容旧引用。
+
+保留 IndexedDB 名称和版本、manifest id/start_url/scope 及部署路径。Service Worker 通过新图标的路径和内容修订下载并预缓存新资源，不清除 IndexedDB。更新仍采用现有等待激活机制，避免编辑时强制刷新：
+
+1. 保存尚未保存的草稿，然后联网打开网站。
+2. 关闭该站点所有 Safari 标签页及主屏幕应用窗口，再重新打开，让已下载的新版本激活。一般无需重新安装。
+3. 网页 LOGO 和新安装时的图标应显示新版本；已安装主屏幕图标和名称由 iOS 管理，可能仍保留安装快照。网页无法保证或强制刷新系统图标，也无法通过 JavaScript 修改既有快捷方式名称。
+4. 若系统始终保留旧图标，最后才考虑重新添加主屏幕快捷方式。**不要清除 Safari 网站数据。不要在未另行备份前删除已安装的主屏幕应用**，不同 iOS 版本可能将它视为独立存储上下文，删除后无法保证本地草稿仍可恢复。单独从 Safari 新增快捷方式也不保证能看到原主屏幕应用的数据。
+
+自动化检查覆盖 Chromium/WebKit 的图标解码、尺寸与版本 URL、主屏幕名称元数据、离线图标及原有草稿持久化流程。桌面 WebKit 不等于真实 iPhone；iOS 系统桌面图标、安装快照更新与分享菜单仍需在实际手机上验收。
