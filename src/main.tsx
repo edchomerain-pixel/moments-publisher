@@ -410,11 +410,6 @@ function App() {
                     : "新记录"}
               </span>
             </div>
-            <h1 className="editor-title">
-              {drafts.some((d) => d.id === current.id)
-                ? "编辑图片与文案"
-                : "添加图片与文案"}
-            </h1>
             <section className="share-shortcut" aria-label="半自动分享">
               <button
                 className="primary wide"

@@ -328,10 +328,7 @@ footer {
   font-size: 11px;
   color: #8a927f;
 }
-.editor-title {
-  font-size: 32px;
-  margin: 20px 0 28px;
-}
+
 .editor-layout {
   display: grid;
   grid-template-columns: 1.2fr 1fr;
@@ -529,9 +526,6 @@ footer {
   .panel {
     padding: 20px;
     margin-bottom: 16px;
-  }
-  .editor-title {
-    font-size: 28px;
   }
 
   .editor-heading .quiet {
