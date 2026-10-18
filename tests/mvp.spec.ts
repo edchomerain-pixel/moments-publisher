@@ -269,6 +269,9 @@ test("仅文案保存后重开并复制真实文本", async ({ page, browserName
     .getByRole("button", { name: "复制朋友圈文案", exact: true })
     .click();
   await expect(page.getByRole("status")).toContainText("文案已复制");
+  await page.getByRole("button", { name: "一键分享准备", exact: true }).click();
+  await expect(page.getByRole("status")).toContainText("文案已复制");
+  await expect(page.getByRole("status")).toContainText("没有图片，仅处理文案");
   if (browserName === "chromium")
     expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
       "只保留我输入的文字",
@@ -370,3 +373,139 @@ test("旧商品草稿的图片文案与隐藏字段保持不变", async ({ page 
     bytes: Array.from(png),
   });
 });
+
+for (const mode of [
+  "success",
+  "cancel",
+  "unsupported",
+  "copy-denied",
+  "share-denied",
+] as const) {
+  test(`一键分享准备：${mode}`, async ({ page }) => {
+    await page.addInitScript(
+      ({ mode }) => {
+        const probe = {
+          calls: [] as string[],
+          copy: "",
+          files: [] as { name: string; type: string; size: number }[],
+          text: undefined as string | undefined,
+        };
+        Object.defineProperty(window, "shareProbe", { value: probe });
+        let finishCopy: (() => void) | undefined;
+        Object.defineProperty(navigator, "clipboard", {
+          configurable: true,
+          value: {
+            writeText: (text: string) => {
+              probe.calls.push("copy");
+              probe.copy = text;
+              if (mode === "copy-denied")
+                return Promise.reject(
+                  new DOMException("denied", "NotAllowedError"),
+                );
+              if (mode === "unsupported") return Promise.resolve();
+              return new Promise<void>((resolve) => {
+                finishCopy = resolve;
+              });
+            },
+          },
+        });
+        Object.defineProperty(navigator, "canShare", {
+          configurable: true,
+          value: () => mode !== "unsupported",
+        });
+        Object.defineProperty(navigator, "share", {
+          configurable: true,
+          value: (data: ShareData) => {
+            probe.calls.push("share");
+            probe.files = (data.files || []).map((f) => ({
+              name: f.name,
+              type: f.type,
+              size: f.size,
+            }));
+            probe.text = data.text;
+            finishCopy?.();
+            if (mode === "cancel")
+              return Promise.reject(
+                new DOMException("cancelled", "AbortError"),
+              );
+            if (mode === "share-denied")
+              return Promise.reject(
+                new DOMException("denied", "NotAllowedError"),
+              );
+            return Promise.resolve();
+          },
+        });
+      },
+      { mode },
+    );
+    await page.goto("./");
+    await page
+      .getByRole("button", { name: "＋ 新建记录", exact: true })
+      .click();
+    const shortcut = page.getByRole("button", {
+      name: "一键分享准备",
+      exact: true,
+    });
+    await expect(shortcut).toBeDisabled();
+    await page
+      .getByRole("textbox", { name: "朋友圈文案" })
+      .fill("半自动分享文案\n第二行");
+    await page.locator("input[type=file]").setInputFiles(
+      [0, 1].map((i) => ({
+        name: `photo-${i}.png`,
+        mimeType: "image/png",
+        buffer: png,
+      })),
+    );
+    await expect(page.locator(".photo")).toHaveCount(2);
+    await page
+      .getByRole("button", { name: "后移第1张图片", exact: true })
+      .click();
+    await shortcut.click();
+    const expected = {
+      success: "应用无法确认图片是否保存",
+      cancel: "图片分享已取消",
+      unsupported: "此浏览器不支持图片分享",
+      "copy-denied": "文案未能自动复制",
+      "share-denied": "图片分享未完成",
+    }[mode];
+    await expect(page.getByRole("status")).toContainText(expected);
+    if (mode !== "copy-denied")
+      await expect(page.getByRole("status")).toContainText("文案已复制");
+    const probe = await page.evaluate(() => Reflect.get(window, "shareProbe"));
+    expect(probe.calls).toEqual(
+      mode === "unsupported" ? ["copy"] : ["copy", "share"],
+    );
+    expect(probe.copy).toBe("半自动分享文案\n第二行");
+    if (mode !== "unsupported")
+      expect(probe.files).toEqual(
+        [1, 0].map((n, i) => ({
+          name: `0${i + 1}-photo-${n}.png`,
+          type: "image/png",
+          size: png.length,
+        })),
+      );
+    expect(probe.text).toBeUndefined();
+    await expect(shortcut).toBeEnabled();
+    await expect(page.getByRole("textbox", { name: "朋友圈文案" })).toHaveValue(
+      "半自动分享文案\n第二行",
+    );
+    await expect(page.locator(".photo")).toHaveCount(2);
+    // The shortcut must not save, delete or change the record behind the user.
+    await expect(page.locator(".save-bar")).toContainText("修改尚未保存");
+    await page.getByRole("button", { name: "保存记录", exact: true }).click();
+    await expect(page.getByRole("status")).toContainText("草稿已保存");
+    await page.reload();
+    await page
+      .getByRole("button", { name: "编辑 半自动分享文案", exact: true })
+      .click();
+    await expect(page.locator(".photo")).toHaveCount(2);
+    await expect(page.locator(".photo img").first()).toHaveAttribute(
+      "alt",
+      "photo-1.png",
+    );
+    await expect(page.getByRole("textbox", { name: "朋友圈文案" })).toHaveValue(
+      "半自动分享文案\n第二行",
+    );
+  });
+}

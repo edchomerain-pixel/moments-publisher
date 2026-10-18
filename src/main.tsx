@@ -13,6 +13,7 @@ import {
 } from "./model";
 import "./style.css";
 import { storageErrorMessage } from "./storage-errors";
+import { prepareSharing, preparationMessage } from "./share-preparation";
 function PhotoView({ photo }: { photo: Photo }) {
   const [url, setUrl] = useState("");
   useEffect(() => {
@@ -172,6 +173,30 @@ function App() {
     } catch (e) {
       if (!(e instanceof DOMException && e.name === "AbortError"))
         notify("分享未完成，请尝试导出图片。");
+    }
+  }
+  async function prepareShare() {
+    if (!current || busy || (!current.photos.length && !current.copy.trim()))
+      return;
+    const files = imageFiles();
+    setBusy(true);
+    notify(
+      "正在准备分享。请在 iPhone 分享菜单中选择「存储图像」（若提供），保存需要你确认。",
+    );
+    try {
+      // No awaited save, file conversion or clipboard work before opening share.
+      const result = await prepareSharing(current.copy, files, {
+        clipboard: navigator.clipboard,
+        canShare: navigator.canShare?.bind(navigator),
+        share: navigator.share?.bind(navigator),
+      });
+      notify(preparationMessage(result));
+      if (result.copy === "failed") {
+        copyInput.current?.focus();
+        copyInput.current?.select();
+      }
+    } finally {
+      setBusy(false);
     }
   }
   async function exportImages() {
@@ -390,6 +415,22 @@ function App() {
                 ? "编辑图片与文案"
                 : "添加图片与文案"}
             </h1>
+            <section className="share-shortcut" aria-label="半自动分享">
+              <button
+                className="primary wide"
+                disabled={
+                  busy || (!current.photos.length && !current.copy.trim())
+                }
+                onClick={() => void prepareShare()}
+              >
+                一键分享准备
+              </button>
+              <p>
+                复制文案并打开图片分享菜单。请在 iPhone
+                菜单中选择「存储图像」（若提供），再手动打开微信朋友圈。保存图片需要你确认，不会自动写入相册。
+              </p>
+              {dirty && <small>当前修改尚未保存，建议先点「保存记录」。</small>}
+            </section>
             <fieldset disabled={busy} className="editor-layout">
               <div>
                 <section className="panel">

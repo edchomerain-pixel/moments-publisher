@@ -597,3 +597,22 @@ fieldset.editor-layout {
 .copy-editor + .text-count {
   margin-bottom: 18px;
 }
+
+.share-shortcut {
+  padding: 20px;
+  background: #e9ede4;
+  border-radius: 12px;
+  margin-bottom: 24px;
+}
+.share-shortcut p {
+  font-size: 12px;
+  line-height: 1.8;
+  color: #65765e;
+  margin: 12px 0 0;
+}
+.share-shortcut small {
+  display: block;
+  color: #806c41;
+  font-size: 11px;
+  margin-top: 10px;
+}
