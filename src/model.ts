@@ -6,6 +6,7 @@ export interface Photo {
 }
 export interface Draft {
   id: string;
+  // Legacy fields remain for backwards compatibility only; no product or status UI.
   brand: string;
   name: string;
   sku: string;
@@ -115,32 +116,19 @@ export function newDraft(): Draft {
     updatedAt: Date.now(),
   };
 }
-export function generateCopy(d: Draft) {
-  return [
-    [d.brand.trim(), d.name.trim()].filter(Boolean).join(" · "),
-    d.sku.trim() && `货号：${d.sku.trim()}`,
-    d.size.trim() && `尺码：${d.size.trim()}`,
-    d.price.trim() && `价格：¥${Number(d.price).toLocaleString("zh-CN")}`,
-    d.notes.trim(),
-    "喜欢可私信了解细节。",
-  ]
-    .filter(Boolean)
-    .join("\n");
+export function draftTitle(d: Draft): string {
+  return d.copy.trim().split(/\r?\n/)[0].slice(0, 40) || "图片记录";
 }
-export function matches(d: Draft, query: string, status: string) {
-  return (
-    (status === "all" || d.status === status) &&
-    [d.brand, d.name, d.sku, d.size, d.notes, d.copy]
-      .join(" ")
-      .toLocaleLowerCase()
-      .includes(query.trim().toLocaleLowerCase())
-  );
+export function matches(d: Draft, query: string) {
+  return [d.copy, ...d.photos.map((photo) => photo.name)]
+    .join(" ")
+    .toLocaleLowerCase()
+    .includes(query.trim().toLocaleLowerCase());
 }
 export function duplicate(d: Draft): Draft {
   return {
     ...d,
     id: crypto.randomUUID(),
-    status: "pending",
     updatedAt: Date.now(),
     photos: d.photos.map((p) => ({ ...p, id: crypto.randomUUID() })),
   };
