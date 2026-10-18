@@ -14,7 +14,7 @@ export default defineConfig({
       manifest: {
         name: "巴商相册",
         short_name: "巴商相册",
-        description: "本地保存商品，轻松准备朋友圈",
+        description: "本地保存商品图片与朋友圈文案",
         lang: "zh-CN",
         id: base,
         start_url: base,

@@ -16,17 +16,24 @@ test.beforeEach(async ({ page }) => {
     console.error(`[pageerror] ${error.name}: ${error.message}`),
   );
 });
-test("手机草稿编辑、九图限制、排序、持久化、筛选与复制删除", async ({
+const png = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j4xkAAAAASUVORK5CYII=",
+  "base64",
+);
+
+test("图片与文案：九图排序、保存重开、编辑、搜索、复制删除及 ZIP", async ({
   page,
 }) => {
   await page.goto("./");
-  await page.getByRole("button", { name: "＋ 新建商品", exact: true }).click();
-  await page.getByLabel("商品名称 *", { exact: true }).fill("经典手袋");
-  await page.getByLabel("品牌", { exact: true }).fill("CHANEL");
-  await page.getByLabel("价格（人民币）").fill("26800");
-  const png = Buffer.from(
-    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j4xkAAAAASUVORK5CYII=",
-    "base64",
+  await page.getByRole("button", { name: "＋ 新建记录", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: /商品信息|发布准备/ }),
+  ).toHaveCount(0);
+  await expect(page.locator("input:not([type=file]), select")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /生成/ })).toHaveCount(0);
+  await page.getByRole("button", { name: "保存记录", exact: true }).click();
+  await expect(page.getByRole("status")).toContainText(
+    "请添加图片或填写朋友圈文案",
   );
   await page.locator("input[type=file]").setInputFiles(
     Array.from({ length: 10 }, (_, i) => ({
@@ -49,28 +56,18 @@ test("手机草稿编辑、九图限制、排序、持久化、筛选与复制�
     .click();
   await expect(page.locator(".photo")).toHaveCount(8);
   await page
-    .getByRole("button", { name: "根据商品信息生成", exact: false })
-    .click();
-  await expect(page.getByRole("textbox", { name: "朋友圈文案" })).toHaveValue(
-    /CHANEL · 经典手袋/,
-  );
-  await page
     .getByRole("textbox", { name: "朋友圈文案" })
-    .fill("手动编辑的文案");
-  await page.getByRole("button", { name: "保存草稿", exact: true }).click();
+    .fill("我的朋友圈文案");
+  await page.getByRole("button", { name: "保存记录", exact: true }).click();
   await expect(page.getByRole("status")).toContainText("草稿已保存");
   await page.reload();
-  await expect(page.locator(".card")).toHaveCount(1);
   await page
-    .getByRole("button", { name: "编辑 经典手袋", exact: true })
+    .getByRole("button", { name: "编辑 我的朋友圈文案", exact: true })
     .click();
   await expect(page.locator(".photo")).toHaveCount(8);
   await expect(page.locator(".photo img").first()).toHaveAttribute(
     "alt",
     "photo-1.png",
-  );
-  await expect(page.getByRole("textbox", { name: "朋友圈文案" })).toHaveValue(
-    "手动编辑的文案",
   );
   await expect
     .poll(() =>
@@ -80,40 +77,37 @@ test("手机草稿编辑、九图限制、排序、持久化、筛选与复制�
         .evaluate((img) => (img as HTMLImageElement).naturalWidth),
     )
     .toBe(1);
+  await expect(page.getByRole("textbox", { name: "朋友圈文案" })).toHaveValue(
+    "我的朋友圈文案",
+  );
   await page
-    .getByRole("textbox", { name: "备注", exact: true })
-    .fill("再次编辑后保存");
-  await page.getByRole("button", { name: "保存草稿", exact: true }).click();
+    .getByRole("textbox", { name: "朋友圈文案" })
+    .fill("再次编辑的文案");
+  await page.getByRole("button", { name: "保存记录", exact: true }).click();
   await expect(page.getByRole("status")).toContainText("草稿已保存");
   await page.reload();
   await page
-    .getByRole("button", { name: "编辑 经典手袋", exact: true })
+    .getByRole("button", { name: "编辑 再次编辑的文案", exact: true })
     .click();
-  await expect(
-    page.getByRole("textbox", { name: "备注", exact: true }),
-  ).toHaveValue("再次编辑后保存");
   await expect(page.locator(".photo")).toHaveCount(8);
   const download = page.waitForEvent("download");
   await page
     .getByRole("button", { name: "导出图片 ZIP ↓", exact: true })
     .click();
-  expect((await download).suggestedFilename()).toBe("商品图片.zip");
-  await page.getByRole("button", { name: "返回草稿箱", exact: false }).click();
-  await page.getByRole("button", { name: "标记已发布", exact: true }).click();
-  await expect(page.locator(".badge")).toHaveText("已发布");
-  await page
-    .getByRole("button", { name: "待发布", exact: false })
-    .filter({ hasNotText: "改为" })
-    .click();
+  expect((await download).suggestedFilename()).toBe("相册图片.zip");
+  await page.getByRole("button", { name: "返回相册", exact: false }).click();
+  await expect(
+    page.getByRole("button", { name: /标记已发布|待发布/ }),
+  ).toHaveCount(0);
+  await page.getByLabel("搜索记录").fill("not-found");
   await expect(page.locator(".card")).toHaveCount(0);
-  await page.locator(".tabs button").first().click();
-  await page.getByLabel("搜索商品").fill("no-match");
-  await expect(page.locator(".card")).toHaveCount(0);
-  await page.getByLabel("搜索商品").fill("chanel");
+  await page.getByLabel("搜索记录").fill("再次编辑");
   await expect(page.locator(".card")).toHaveCount(1);
-  await page.getByRole("button", { name: "复制", exact: true }).click();
+  await page.getByLabel("搜索记录").fill("photo-1");
+  await expect(page.locator(".card")).toHaveCount(1);
+  await page.getByRole("button", { name: "创建副本", exact: true }).click();
   await expect(page.locator(".card")).toHaveCount(2);
-  page.once("dialog", (dialog) => dialog.accept());
+  page.once("dialog", (d) => d.accept());
   await page.getByRole("button", { name: "删除", exact: true }).first().click();
   await expect(page.locator(".card")).toHaveCount(1);
   expect(
@@ -198,7 +192,7 @@ test("安装资源及离线应用壳可用", async ({ page, context }) => {
   await context.setOffline(true);
   await page.reload();
   await expect(
-    page.getByRole("button", { name: "＋ 新建商品", exact: true }),
+    page.getByRole("button", { name: "＋ 新建记录", exact: true }),
   ).toBeVisible();
   // Decode the actual versioned files offline: this catches invalid PNGs, wrong
   // dimensions and new icon URLs missing from the Service Worker precache.
@@ -216,9 +210,7 @@ test("安装资源及离线应用壳可用", async ({ page, context }) => {
   }
 });
 
-test("复制与文件分享不可用时给出手动操作提示，不改发布状态", async ({
-  page,
-}) => {
+test("文案复制及图片分享降级；允许仅图片记录", async ({ page }) => {
   await page.addInitScript(() => {
     Object.defineProperty(navigator, "clipboard", {
       value: {
@@ -233,50 +225,148 @@ test("复制与文件分享不可用时给出手动操作提示，不改发布�
     });
   });
   await page.goto("./");
-  await page.getByRole("button", { name: "＋ 新建商品", exact: true }).click();
-  await page.getByRole("button", { name: "保存草稿", exact: true }).click();
-  await expect(page.getByRole("status")).toContainText("请先填写商品名称");
-  await page.getByLabel("商品名称 *", { exact: true }).fill("分享测试");
-  await page.getByRole("textbox", { name: "朋友圈文案" }).fill("手动发布文案");
+  await page.getByRole("button", { name: "＋ 新建记录", exact: true }).click();
+  await page.getByRole("textbox", { name: "朋友圈文案" }).fill("手动文案");
   await page
     .getByRole("button", { name: "复制朋友圈文案", exact: true })
     .click();
   await expect(page.getByRole("status")).toContainText("长按复制");
-  const png = Buffer.from(
-    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j4xkAAAAASUVORK5CYII=",
-    "base64",
-  );
   await page
     .locator("input[type=file]")
     .setInputFiles({ name: "image.png", mimeType: "image/png", buffer: png });
   await expect(page.locator(".photo")).toHaveCount(1);
   await page.getByRole("button", { name: "分享图片 ↗", exact: true }).click();
   await expect(page.getByRole("status")).toContainText("不支持图片分享");
-  await expect(page.getByLabel("发布状态")).toHaveValue("pending");
-  await page.getByRole("button", { name: "保存草稿", exact: true }).click();
-  await expect(page.getByRole("status")).toContainText("草稿已保存");
-});
-
-test("无图片草稿保存后重开并复制文案", async ({ page, browserName }) => {
-  await page.goto("./");
-  await page.getByRole("button", { name: "＋ 新建商品", exact: true }).click();
-  await page.getByLabel("商品名称 *", { exact: true }).fill("无图片草稿");
-  await page.getByRole("button", { name: "保存草稿", exact: true }).click();
+  await page.getByRole("textbox", { name: "朋友圈文案" }).fill("");
+  await page.getByRole("button", { name: "保存记录", exact: true }).click();
   await expect(page.getByRole("status")).toContainText("草稿已保存");
   await page.reload();
   await page
-    .getByRole("button", { name: "编辑 无图片草稿", exact: true })
+    .getByRole("button", { name: "编辑 图片记录", exact: true })
     .click();
+  await expect(page.getByRole("textbox", { name: "朋友圈文案" })).toHaveValue(
+    "",
+  );
+  await expect(page.locator(".photo")).toHaveCount(1);
+});
+
+test("仅文案保存后重开并复制真实文本", async ({ page, browserName }) => {
+  await page.goto("./");
+  await page.getByRole("button", { name: "＋ 新建记录", exact: true }).click();
+  await page
+    .getByRole("textbox", { name: "朋友圈文案" })
+    .fill("只保留我输入的文字");
+  await page.getByRole("button", { name: "保存记录", exact: true }).click();
+  await expect(page.getByRole("status")).toContainText("草稿已保存");
+  await page.reload();
+  await page
+    .getByRole("button", { name: "编辑 只保留我输入的文字", exact: true })
+    .click();
+  await expect(page.getByRole("textbox", { name: "朋友圈文案" })).toHaveValue(
+    "只保留我输入的文字",
+  );
   await page
     .getByRole("button", { name: "复制朋友圈文案", exact: true })
     .click();
   await expect(page.getByRole("status")).toContainText("文案已复制");
-  // Verify the real clipboard contents where Playwright can grant read access.
-  // WebKit still exercises the native write path above, with no API mock.
-  if (browserName === "chromium") {
+  if (browserName === "chromium")
     expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
-      "无图片草稿\n喜欢可私信了解细节。",
+      "只保留我输入的文字",
     );
-  }
-  await expect(page.getByLabel("发布状态")).toHaveValue("pending");
+});
+
+test("旧商品草稿的图片文案与隐藏字段保持不变", async ({ page }) => {
+  await page.goto("./");
+  await expect(
+    page.getByRole("button", { name: "＋ 新建记录", exact: true }),
+  ).toBeEnabled();
+  await page.evaluate(async (bytes) => {
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+      const r = indexedDB.open("moments-publisher", 1);
+      r.onsuccess = () => resolve(r.result);
+      r.onerror = () => reject(r.error);
+    });
+    const tx = db.transaction("drafts", "readwrite");
+    tx.objectStore("drafts").put({
+      id: "legacy-product",
+      brand: "旧品牌",
+      name: "旧商品",
+      sku: "A01",
+      size: "M",
+      price: "123",
+      notes: "原备注",
+      copy: "旧文案",
+      status: "published",
+      updatedAt: Date.now(),
+      photos: [
+        {
+          id: "oldphoto",
+          name: "old.png",
+          type: "image/png",
+          bytes: new Uint8Array(bytes).buffer,
+        },
+      ],
+    });
+    await new Promise<void>((resolve, reject) => {
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+    db.close();
+  }, Array.from(png));
+  await page.reload();
+  await page.getByRole("button", { name: "编辑 旧文案", exact: true }).click();
+  await expect(page.getByRole("textbox", { name: "朋友圈文案" })).toHaveValue(
+    "旧文案",
+  );
+  await expect
+    .poll(() =>
+      page
+        .locator(".photo img")
+        .first()
+        .evaluate((img) => (img as HTMLImageElement).naturalWidth),
+    )
+    .toBe(1);
+  await page
+    .getByRole("textbox", { name: "朋友圈文案" })
+    .fill("编辑后的旧文案");
+  await page.getByRole("button", { name: "保存记录", exact: true }).click();
+  await expect(page.getByRole("status")).toContainText("草稿已保存");
+  const stored = await page.evaluate(async () => {
+    const db = await new Promise<IDBDatabase>((resolve) => {
+      const r = indexedDB.open("moments-publisher", 1);
+      r.onsuccess = () => resolve(r.result);
+    });
+    const value = await new Promise<any>((resolve) => {
+      const r = db
+        .transaction("drafts")
+        .objectStore("drafts")
+        .get("legacy-product");
+      r.onsuccess = () => resolve(r.result);
+    });
+    db.close();
+    return {
+      version: db.version,
+      brand: value.brand,
+      name: value.name,
+      sku: value.sku,
+      size: value.size,
+      price: value.price,
+      notes: value.notes,
+      status: value.status,
+      copy: value.copy,
+      bytes: Array.from(new Uint8Array(value.photos[0].bytes)),
+    };
+  });
+  expect(stored).toEqual({
+    version: 1,
+    brand: "旧品牌",
+    name: "旧商品",
+    sku: "A01",
+    size: "M",
+    price: "123",
+    notes: "原备注",
+    status: "published",
+    copy: "编辑后的旧文案",
+    bytes: Array.from(png),
+  });
 });

@@ -2,29 +2,21 @@ import { describe, it, expect } from "vitest";
 import "fake-indexeddb/auto";
 import {
   newDraft,
-  generateCopy,
+  draftTitle,
   duplicate,
   matches,
   movePhoto,
   repository,
 } from "./model";
 describe("商品草稿", () => {
-  it("按真实信息生成中文文案，不添加成色或真伪承诺", () => {
-    const d = {
-      ...newDraft(),
-      brand: "CHANEL",
-      name: "手袋",
-      price: "26800",
-      sku: "A01",
-      size: "中号",
-      notes: "黑色",
-    };
-    expect(generateCopy(d)).toBe(
-      "CHANEL · 手袋\n货号：A01\n尺码：中号\n价格：¥26,800\n黑色\n喜欢可私信了解细节。",
+  it("用文案首行显示记录，不自动补写文字", () => {
+    expect(draftTitle({ ...newDraft(), copy: "  我的文案\n第二行" })).toBe(
+      "我的文案",
     );
-    expect(generateCopy(newDraft())).not.toContain("¥");
+    expect(draftTitle(newDraft())).toBe("图片记录");
+    expect(newDraft().copy).toBe("");
   });
-  it("复制时重置状态并保留独立图片顺序", () => {
+  it("复制时保留文案及旧数据，图片顺序独立", () => {
     const d = {
       ...newDraft(),
       status: "published" as const,
@@ -35,7 +27,7 @@ describe("商品草稿", () => {
     };
     const c = duplicate(d);
     expect(c.id).not.toBe(d.id);
-    expect(c.status).toBe("pending");
+    expect(c.status).toBe("published");
     expect(c.photos[0].id).not.toBe("a");
     expect(movePhoto(c.photos, 0, 1).map((p) => p.name)).toEqual([
       "b.png",
@@ -44,11 +36,17 @@ describe("商品草稿", () => {
     expect(d.photos[0].id).toBe("a");
     expect(movePhoto(d.photos, 0, -1)).toBe(d.photos);
   });
-  it("支持大小写不敏感搜索及发布状态筛选", () => {
-    const d = { ...newDraft(), brand: "CHANEL", sku: "A01" };
-    expect(matches(d, "chanel", "pending")).toBe(true);
-    expect(matches(d, "A01", "all")).toBe(true);
-    expect(matches(d, "", "published")).toBe(false);
+  it("按文案及图片文件名搜索，不使用隐藏商品字段", () => {
+    const d = {
+      ...newDraft(),
+      brand: "CHANEL",
+      copy: "黑色手袋",
+      photos: [{ id: "p", name: "BAG.JPG", blob: new Blob() }],
+    };
+    expect(matches(d, "黑色")).toBe(true);
+    expect(matches(d, "bag.jpg")).toBe(true);
+    expect(matches(d, "CHANEL")).toBe(false);
+    expect(matches(d, "")).toBe(true);
   });
   it("IndexedDB 保存图片 Blob、更新和删除", async () => {
     const d = {
