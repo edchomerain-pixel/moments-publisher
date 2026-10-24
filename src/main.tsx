@@ -1,3 +1,4 @@
+import { Inbox } from "./Inbox";
 import React, { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { zipSync } from "fflate";
@@ -32,6 +33,7 @@ function App() {
     [loading, setLoading] = useState(true),
     [dirty, setDirty] = useState(false),
     [help, setHelp] = useState(false);
+  const [inbox, setInbox] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null),
     copyInput = useRef<HTMLTextAreaElement>(null);
   const notify = (s: string) => setMessage(s);
@@ -313,6 +315,19 @@ function App() {
               </button>
               <span className="local">◉ 仅本机保存 · 无需登录</span>
             </section>
+            <button
+              className="quiet"
+              disabled={busy || loading}
+              onClick={() => setInbox(!inbox)}
+            >
+              云端收件箱
+            </button>
+            {inbox && (
+              <Inbox
+                onClose={() => setInbox(false)}
+                onImported={async () => setDrafts(await repository.all())}
+              />
+            )}
             <section className="library">
               <div className="section-title">
                 <h2>

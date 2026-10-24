@@ -96,6 +96,42 @@ export const repository = {
     const transaction = (await db()).transaction("drafts", "readwrite");
     await Promise.all([transaction.store.put(stored), transaction.done]);
   },
+  // Inbox imports only add new keys. Never put/overwrite an existing record.
+  async addMissing(drafts: Draft[]): Promise<number> {
+    const stored: StoredDraft[] = await Promise.all(
+      drafts.map(async (draft) => ({
+        ...draft,
+        photos: await Promise.all(
+          draft.photos.map(async (photo) => ({
+            id: photo.id,
+            name: photo.name,
+            type: photo.blob.type,
+            bytes: await photo.blob.arrayBuffer(),
+          })),
+        ),
+      })),
+    );
+    const transaction = (await db()).transaction("drafts", "readwrite");
+    let count = 0;
+    try {
+      for (const draft of stored) {
+        if (!(await transaction.store.get(draft.id))) {
+          await transaction.store.add(draft);
+          count++;
+        }
+      }
+      await transaction.done;
+      return count;
+    } catch (error) {
+      try {
+        transaction.abort();
+      } catch {
+        /* Already aborted. */
+      }
+      await transaction.done.catch(() => {});
+      throw error;
+    }
+  },
   async remove(id: string) {
     const transaction = (await db()).transaction("drafts", "readwrite");
     await Promise.all([transaction.store.delete(id), transaction.done]);

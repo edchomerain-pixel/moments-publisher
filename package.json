@@ -10,7 +10,8 @@
     "test": "vitest run src",
     "test:e2e": "playwright test",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "test:inbox-worker": "node --test cloud-inbox/worker.test.js"
   },
   "dependencies": {
     "fflate": "^0.8.2",
