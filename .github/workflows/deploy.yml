@@ -29,6 +29,7 @@ jobs:
       - run: npm ci
       - run: npm run format:check
       - run: npm test
+      - run: npm run test:inbox-worker
       - run: npm run build
       - uses: actions/upload-pages-artifact@v3
         with:

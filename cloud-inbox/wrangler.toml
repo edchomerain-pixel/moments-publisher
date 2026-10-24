@@ -1,0 +1,12 @@
+name = "bashang-cloud-inbox"
+main = "worker.js"
+compatibility_date = "2026-10-01"
+workers_dev = true
+
+[vars]
+ALLOWED_ORIGIN = "https://edchomerain-pixel.github.io"
+
+[[r2_buckets]]
+binding = "INBOX"
+bucket_name = "bashang-album-images"
+# READ_TOKEN and UPLOAD_TOKEN must be separate Worker secrets, never vars.
