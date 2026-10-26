@@ -62,6 +62,7 @@ export class InboxClient {
         (i: InboxItem) =>
           !/^[a-f0-9]{64}$/.test(i.id) ||
           typeof i.name !== "string" ||
+          !Number.isFinite(Date.parse(i.uploaded)) ||
           !Number.isSafeInteger(i.size) ||
           i.size < 1 ||
           i.size > 25 * 1024 * 1024 ||

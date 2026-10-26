@@ -34,15 +34,17 @@ type StoredDraft = Omit<Draft, "photos"> & {
 };
 interface Store extends DBSchema {
   drafts: { key: string; value: StoredDraft };
+  dismissed: { key: string; value: string };
 }
 let connection: Promise<IDBPDatabase<Store>> | undefined;
 function db(): Promise<IDBPDatabase<Store>> {
   if (!connection) {
-    const opening = openDB<Store>("moments-publisher", 1, {
+    const opening = openDB<Store>("moments-publisher", 2, {
       upgrade(database, oldVersion) {
         if (oldVersion < 1) {
           database.createObjectStore("drafts", { keyPath: "id" });
         }
+        if (oldVersion < 2) database.createObjectStore("dismissed");
       },
       blocking() {
         // A newer app version in another tab must be allowed to upgrade.
@@ -76,6 +78,13 @@ function restoreDraft(stored: StoredDraft): Draft {
   };
 }
 export const repository = {
+  async cloudKeys(): Promise<Set<string>> {
+    const database = await db();
+    return new Set([
+      ...(await database.getAllKeys("drafts")),
+      ...(await database.getAllKeys("dismissed")),
+    ]);
+  },
   async all(): Promise<Draft[]> {
     const stored = await (await db()).getAll("drafts");
     return stored.map(restoreDraft).sort((a, b) => b.updatedAt - a.updatedAt);
@@ -111,12 +120,18 @@ export const repository = {
         ),
       })),
     );
-    const transaction = (await db()).transaction("drafts", "readwrite");
+    const transaction = (await db()).transaction(
+      ["drafts", "dismissed"],
+      "readwrite",
+    );
     let count = 0;
     try {
       for (const draft of stored) {
-        if (!(await transaction.store.get(draft.id))) {
-          await transaction.store.add(draft);
+        if (
+          !(await transaction.objectStore("drafts").get(draft.id)) &&
+          !(await transaction.objectStore("dismissed").get(draft.id))
+        ) {
+          await transaction.objectStore("drafts").add(draft);
           count++;
         }
       }
@@ -133,8 +148,14 @@ export const repository = {
     }
   },
   async remove(id: string) {
-    const transaction = (await db()).transaction("drafts", "readwrite");
-    await Promise.all([transaction.store.delete(id), transaction.done]);
+    const transaction = (await db()).transaction(
+      ["drafts", "dismissed"],
+      "readwrite",
+    );
+    await transaction.objectStore("drafts").delete(id);
+    if (id.startsWith("cloud-inbox:"))
+      await transaction.objectStore("dismissed").put(id, id);
+    await transaction.done;
   },
 };
 export function newDraft(): Draft {

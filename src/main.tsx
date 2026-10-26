@@ -1,5 +1,6 @@
+import { AutoSync } from "./AutoSync";
 import { Inbox } from "./Inbox";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { zipSync } from "fflate";
 import {
@@ -33,6 +34,10 @@ function App() {
     [loading, setLoading] = useState(true),
     [dirty, setDirty] = useState(false),
     [help, setHelp] = useState(false);
+  const reloadAlbum = useCallback(
+    async () => setDrafts(await repository.all()),
+    [],
+  );
   const [inbox, setInbox] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null),
     copyInput = useRef<HTMLTextAreaElement>(null);
@@ -313,15 +318,16 @@ function App() {
               >
                 ＋ 新建记录
               </button>
-              <span className="local">◉ 仅本机保存 · 无需登录</span>
+              <span className="local">◉ 本机相册 · 支持云端自动同步</span>
             </section>
             <button
               className="quiet"
               disabled={busy || loading}
               onClick={() => setInbox(!inbox)}
             >
-              云端收件箱
+              云端连接
             </button>
+            <AutoSync onChanged={reloadAlbum} />
             {inbox && (
               <Inbox
                 onClose={() => setInbox(false)}
