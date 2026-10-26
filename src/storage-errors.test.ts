@@ -32,6 +32,24 @@ describe("存储异常提示", () => {
     expect(
       storageErrorMessage(new Error("unexpected"), "保存草稿"),
     ).not.toContain("空间不足");
-    expect(log).toHaveBeenCalledWith("[IndexedDB/保存草稿] Error: unexpected");
+    expect(log).toHaveBeenCalledWith("[IndexedDB/保存草稿] Error");
+  });
+  it("does not disclose raw messages, stacks, custom names or operation labels", () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    const marker = "synthetic-sensitive-review-marker";
+    const error = new Error(`Authorization: Bearer ${marker}`);
+    error.name = marker;
+    error.stack = `https://service.example/?token=${marker}`;
+    const message = storageErrorMessage(error, marker);
+    expect(message).not.toContain(marker);
+    expect(log).toHaveBeenCalledWith("[IndexedDB/存储操作] UnknownError");
+    expect(JSON.stringify(log.mock.calls)).not.toContain(marker);
+    expect(
+      storageErrorMessage(
+        new DOMException(marker, "QuotaExceededError"),
+        "导入图片",
+      ),
+    ).toContain("本机存储空间不足");
+    expect(JSON.stringify(log.mock.calls)).not.toContain(marker);
   });
 });

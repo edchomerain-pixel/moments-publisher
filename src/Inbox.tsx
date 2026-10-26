@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { InboxClient, importInbox, type InboxItem } from "./cloud-inbox";
 import { storageErrorMessage } from "./storage-errors";
+import { inboxErrorMessage } from "./inbox-errors";
 function Preview({ client, item }: { client: InboxClient; item: InboxItem }) {
   const [show, setShow] = useState(false);
   const [url, setUrl] = useState("");
@@ -79,7 +80,7 @@ export function Inbox({
       if (!more) setSelected([]);
       if (!result.items.length) setMessage("云端暂无图片。");
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : "连接失败，请检查网络。");
+      setMessage(inboxErrorMessage(e) || "连接失败，请检查网络。");
     } finally {
       setBusy(false);
     }
@@ -99,9 +100,11 @@ export function Inbox({
       );
       await onImported();
     } catch (e) {
+      const safeMessage = inboxErrorMessage(e);
       setMessage(
-        storageErrorMessage(e, "导入图片") +
-          (e instanceof Error ? ` ${e.message}` : ""),
+        safeMessage
+          ? `导入图片失败：${safeMessage}`
+          : storageErrorMessage(e, "导入图片"),
       );
     } finally {
       setBusy(false);

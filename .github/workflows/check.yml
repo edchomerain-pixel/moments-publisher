@@ -12,10 +12,13 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - run: npm audit --audit-level=low
       - run: npm run format:check
       - run: npm test
       - run: npm run test:inbox-worker
+      - run: npm run test:worker-runtime
       - run: npm run build
+      - run: npm run check:release
       - run: npx playwright install --with-deps chromium webkit
       - run: npm run test:e2e
 

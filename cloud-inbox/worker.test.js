@@ -105,3 +105,35 @@ test("validates bytes, bounds uploads and keeps content-addressed retries immuta
   assert.equal(puts[0][2].customMetadata.name, "测试.png");
   assert.deepEqual(puts[0][2].onlyIf, { etagDoesNotMatch: "*" });
 });
+
+test("R2 failures never echo exceptions or credentials to responses or app logs", async (t) => {
+  const calls = [];
+  for (const method of ["log", "error", "warn", "debug", "info", "trace"])
+    t.mock.method(console, method, (...args) => calls.push(args));
+  const marker = "synthetic-private-exception-marker";
+  const fail = async () => {
+    throw new Error(
+      `${marker}: Authorization: Bearer ${env.READ_TOKEN}; ${env.UPLOAD_TOKEN}`,
+    );
+  };
+  const failing = { ...env, INBOX: { list: fail, get: fail, put: fail } };
+  const requests = [
+    request("/images", env.READ_TOKEN),
+    request("/images/" + "a".repeat(64), env.READ_TOKEN),
+    new Request("https://inbox.test/images", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${env.UPLOAD_TOKEN}`,
+        "Content-Type": "image/png",
+      },
+      body: new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]),
+    }),
+  ];
+  for (const req of requests) {
+    const response = await worker.fetch(req, failing);
+    assert.equal(response.status, 503);
+    assert.deepEqual(await response.json(), { error: "Service unavailable" });
+    assert(!JSON.stringify([...response.headers]).includes(marker));
+  }
+  assert.deepEqual(calls, []);
+});

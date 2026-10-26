@@ -1,4 +1,5 @@
 import { newDraft, repository, type Draft } from "./model";
+import { InboxError } from "./inbox-errors";
 export interface InboxItem {
   id: string;
   name: string;
@@ -7,7 +8,12 @@ export interface InboxItem {
   uploaded: string;
 }
 export function inboxEndpoint(value: string) {
-  const url = new URL(value);
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new InboxError("endpoint");
+  }
   if (
     url.protocol !== "https:" ||
     url.username ||
@@ -16,7 +22,7 @@ export function inboxEndpoint(value: string) {
     url.hash ||
     url.pathname !== "/"
   )
-    throw new Error("请输入 HTTPS 云端服务根地址，不要包含路径、密钥或参数。");
+    throw new InboxError("endpoint");
   return url.origin;
 }
 export class InboxClient {
@@ -36,10 +42,9 @@ export class InboxClient {
       signal: AbortSignal.timeout(60000),
     });
     if (!response.ok)
-      throw new Error(
-        response.status === 401
-          ? "查看凭据无效，请重新输入。"
-          : `云端请求失败（${response.status}），请稍后重试。`,
+      throw new InboxError(
+        response.status === 401 ? "unauthorized" : "request",
+        response.status,
       );
     return response;
   }
@@ -64,21 +69,21 @@ export class InboxClient {
       ) ||
       !(data.cursor === null || typeof data.cursor === "string")
     )
-      throw new Error("云端数据格式不正确。");
+      throw new InboxError("list");
     return data;
   }
   async download(item: InboxItem) {
     const response = await this.request(`/images/${item.id}`);
     const blob = await response.blob();
     if (blob.size !== item.size || blob.type !== item.type)
-      throw new Error("图片大小或格式不匹配，未导入。");
+      throw new InboxError("mismatch");
     const hash = Array.from(
       new Uint8Array(
         await crypto.subtle.digest("SHA-256", await blob.arrayBuffer()),
       ),
       (b) => b.toString(16).padStart(2, "0"),
     ).join("");
-    if (hash !== item.id) throw new Error("图片完整性校验失败，未导入。");
+    if (hash !== item.id) throw new InboxError("integrity");
     await new Promise<void>((resolve, reject) => {
       const url = URL.createObjectURL(blob);
       const img = new Image();
@@ -88,7 +93,7 @@ export class InboxClient {
       };
       img.onerror = () => {
         URL.revokeObjectURL(url);
-        reject(new Error("图片无法解码，未导入。"));
+        reject(new InboxError("decode"));
       };
       img.src = url;
     });
@@ -99,8 +104,7 @@ export async function importInbox(
   client: InboxClient,
   items: InboxItem[],
 ): Promise<number> {
-  if (!items.length || items.length > 9)
-    throw new Error("每次请选择 1 至 9 张图片。");
+  if (!items.length || items.length > 9) throw new InboxError("selection");
   const drafts: Draft[] = [];
   for (const item of items) {
     const blob = await client.download(item);

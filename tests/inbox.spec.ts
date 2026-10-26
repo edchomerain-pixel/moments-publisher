@@ -97,3 +97,26 @@ test("图片校验失败时本批不写入", async ({ page }) => {
   await page.reload();
   await expect(page.locator(".card")).toHaveCount(0);
 });
+
+test("云端异常响应不将凭据样式的内容带入界面或日志", async ({ page }) => {
+  const marker = "synthetic-sensitive-error-marker";
+  const messages: string[] = [];
+  page.on("console", (message) => messages.push(message.text()));
+  page.on("pageerror", (error) => messages.push(error.message));
+  await page.route("https://inbox.example/**", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: `Authorization: Bearer ${marker}`,
+    }),
+  );
+  await page.goto("./");
+  await page.getByRole("button", { name: "云端收件箱", exact: true }).click();
+  await page.getByLabel("云端服务地址").fill("https://inbox.example");
+  await page.getByLabel("查看凭据").fill("synthetic-view-credential");
+  await page.getByRole("button", { name: "连接 / 刷新" }).click();
+  await expect(page.getByRole("status")).toContainText(
+    "连接失败，请检查网络。",
+  );
+  await expect(page.locator("body")).not.toContainText(marker);
+  expect(messages.join("\n")).not.toContain(marker);
+});
