@@ -20,6 +20,13 @@ jobs:
       - run: npm run test:worker-runtime
       - run: npm run build
       - run: npm run check:release
+      - name: Use official Ubuntu mirrors for browser dependencies
+        run: |
+          for mirror in /etc/apt/apt-mirrors*.txt; do
+            if [ -f "$mirror" ]; then
+              sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' "$mirror"
+            fi
+          done
       - run: npx playwright install --with-deps chromium webkit
       - run: npm run test:e2e
       - name: Verify published Pages and Worker
