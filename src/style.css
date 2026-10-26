@@ -610,3 +610,38 @@ fieldset.editor-layout {
   font-size: 11px;
   margin-top: 10px;
 }
+
+.inbox {
+  margin: 1rem 0;
+}
+.inbox fieldset {
+  border: 0;
+  padding: 0;
+  min-width: 0;
+}
+.inbox label {
+  display: block;
+  margin: 1rem 0;
+  overflow-wrap: anywhere;
+}
+.inbox input[type="url"],
+.inbox input[type="password"] {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.7rem;
+}
+.inbox .inbox-item {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+}
+.inbox button {
+  margin: 0.3rem;
+}
+.inbox-preview {
+  width: 64px;
+  height: 64px;
+  object-fit: contain;
+  flex-shrink: 0;
+}

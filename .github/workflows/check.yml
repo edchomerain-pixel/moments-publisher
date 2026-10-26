@@ -12,11 +12,19 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - run: npm audit --audit-level=low
       - run: npm run format:check
       - run: npm test
+      - run: npm run test:inbox-worker
+      - run: node --test scripts/check-live-pages.test.cjs
+      - run: npm run test:worker-runtime
       - run: npm run build
+      - run: npm run check:release
       - run: npx playwright install --with-deps chromium webkit
       - run: npm run test:e2e
+      - name: Verify published Pages and Worker
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: node scripts/check-live-pages.cjs dist
 
       - uses: actions/upload-artifact@v4
         if: failure()

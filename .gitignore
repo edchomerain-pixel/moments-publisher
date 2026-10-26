@@ -3,3 +3,11 @@ dist/
 *.tsbuildinfo
 test-results/
 playwright-report/
+
+# Local cloud credentials and Wrangler state
+.env
+.env.*
+.dev.vars
+.dev.vars.*
+.wrangler/
+.bashang-cloud-inbox-secrets.json
