@@ -82,7 +82,7 @@ describe("Safari 图片存储回归", () => {
     };
     await repository.save(draft);
     const { openDB } = await import("idb");
-    const raw = await openDB("moments-publisher", 1);
+    const raw = await openDB("moments-publisher", 2);
     try {
       const stored = await raw.get("drafts", draft.id);
       expect(stored.photos[0].blob).toBeUndefined();
@@ -112,7 +112,7 @@ describe("Safari 图片存储回归", () => {
         },
       ],
     };
-    const raw = await openDB("moments-publisher", 1);
+    const raw = await openDB("moments-publisher", 2);
     try {
       await raw.put("drafts", legacy);
       const reopened = (await repository.all()).find(

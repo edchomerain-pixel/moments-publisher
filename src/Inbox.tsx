@@ -1,7 +1,12 @@
 import { useEffect, useState } from "react";
 import { InboxClient, importInbox, type InboxItem } from "./cloud-inbox";
+import {
+  readConnection,
+  saveConnection,
+  clearConnection,
+} from "./inbox-connection";
 import { storageErrorMessage } from "./storage-errors";
-import { inboxErrorMessage } from "./inbox-errors";
+import { InboxError, inboxErrorMessage } from "./inbox-errors";
 function Preview({ client, item }: { client: InboxClient; item: InboxItem }) {
   const [show, setShow] = useState(false);
   const [url, setUrl] = useState("");
@@ -51,14 +56,19 @@ export function Inbox({
   onImported: () => Promise<void>;
   onClose: () => void;
 }) {
-  const [endpoint, setEndpoint] = useState("");
-  const [token, setToken] = useState("");
+  const [saved] = useState(readConnection);
+  const [endpoint, setEndpoint] = useState(saved?.endpoint || "");
+  const [token, setToken] = useState(saved?.token || "");
+  const [storageNotice, setStorageNotice] = useState("");
   const [client, setClient] = useState<InboxClient | null>(null);
   const [items, setItems] = useState<InboxItem[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  useEffect(() => {
+    if (saved) void load();
+  }, []);
   async function load(more = false) {
     setBusy(true);
     setMessage("");
@@ -66,6 +76,15 @@ export function Inbox({
       const api = more && client ? client : new InboxClient(endpoint, token);
       const result = await api.list(more ? cursor || undefined : undefined);
       setClient(api);
+      if (!more) {
+        try {
+          saveConnection({ endpoint: api.endpoint, token });
+          setStorageNotice("已记住连接，图片将自动进入正式相册。");
+          void navigator.storage?.persist?.().catch(() => false);
+        } catch {
+          setStorageNotice("本机存储不可用，本次仍可使用；关闭后需重新连接。");
+        }
+      }
       setItems((previous) =>
         more
           ? [
@@ -80,6 +99,19 @@ export function Inbox({
       if (!more) setSelected([]);
       if (!result.items.length) setMessage("云端暂无图片。");
     } catch (e) {
+      if (e instanceof InboxError && e.code === "unauthorized") {
+        try {
+          clearConnection();
+        } catch {
+          /* Show the recovery action below. */
+        }
+        setToken("");
+        setClient(null);
+        setItems([]);
+        setSelected([]);
+        setCursor(null);
+        setStorageNotice("保存的凭据已失效，请输入新的查看凭据后连接。");
+      }
       setMessage(inboxErrorMessage(e) || "连接失败，请检查网络。");
     } finally {
       setBusy(false);
@@ -115,9 +147,10 @@ export function Inbox({
       <button className="quiet" disabled={busy} onClick={onClose}>
         关闭收件箱
       </button>
-      <h2>云端收件箱</h2>
+      <h2>云端连接</h2>
       <p>
-        仅在点击连接后访问云端。每张图片导入为一条本地记录，原有记录与排序保持不变。
+        首次连接后，打开相册、回到前台或恢复网络时会自动同步，无需勾选导入。iPhone
+        关闭应用后不能保证后台同步，下次打开会继续。
       </p>
       <fieldset disabled={busy}>
         <label>
@@ -149,11 +182,34 @@ export function Inbox({
           />
         </label>
         <p>
-          只输入查看凭据，勿输入上传密钥或管理令牌。地址和凭据仅在当前收件箱内存中保留，关闭后需重新输入。
+          只输入查看凭据，勿输入上传密钥或管理令牌。凭据保存在当前浏览器的网站存储中，不是系统钥匙串；同源网页脚本及可使用此设备的人可能访问。请仅在自己的设备连接。
+          iPhone 请从主屏图标打开后连接一次，Safari
+          与主屏应用不共享此存储。清除网站数据、移除应用或系统清理后可能需要重新连接。
         </p>
         <button disabled={!endpoint || !token} onClick={() => void load()}>
           连接 / 刷新
         </button>
+        <button
+          onClick={() => {
+            try {
+              clearConnection();
+            } catch {
+              setStorageNotice("清除失败，请在系统设置中清除此网站数据。");
+              return;
+            }
+            setEndpoint("");
+            setToken("");
+            setClient(null);
+            setItems([]);
+            setSelected([]);
+            setCursor(null);
+            setMessage("");
+            setStorageNotice("已断开并清除本机连接凭据，已导入的记录保留。");
+          }}
+        >
+          断开 / 清除本机凭据
+        </button>
+        {storageNotice && <p role="note">{storageNotice}</p>}
         {items.map((item) => (
           <label className="inbox-item" key={item.id}>
             <input

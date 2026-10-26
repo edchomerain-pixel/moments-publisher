@@ -95,7 +95,7 @@ async function verifyBrowser() {
     await page.getByRole("textbox", { name: "朋友圈文案" }).waitFor();
     page.once("dialog", (dialog) => dialog.accept());
     await page.getByRole("button", { name: "← 返回相册", exact: true }).click();
-    await page.getByRole("button", { name: "云端收件箱", exact: true }).click();
+    await page.getByRole("button", { name: "云端连接", exact: true }).click();
     await page.getByLabel("云端服务地址").fill(WORKER);
     await page.getByLabel("查看凭据").fill(INVALID);
     await page.getByRole("button", { name: "连接 / 刷新" }).click();
@@ -107,7 +107,7 @@ async function verifyBrowser() {
       .waitFor({ timeout: 70000 });
     // This exercises a real browser OPTIONS + GET to the existing Worker, without a Secret.
     await page.getByRole("button", { name: "关闭收件箱", exact: true }).click();
-    await page.getByRole("button", { name: "云端收件箱", exact: true }).click();
+    await page.getByRole("button", { name: "云端连接", exact: true }).click();
     assert.equal(await page.getByLabel("查看凭据").inputValue(), "");
     const storage = await page.evaluate(() =>
       JSON.stringify([localStorage, sessionStorage]),

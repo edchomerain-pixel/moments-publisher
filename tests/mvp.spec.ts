@@ -285,7 +285,7 @@ test("旧商品草稿的图片文案与隐藏字段保持不变", async ({ page 
   ).toBeEnabled();
   await page.evaluate(async (bytes) => {
     const db = await new Promise<IDBDatabase>((resolve, reject) => {
-      const r = indexedDB.open("moments-publisher", 1);
+      const r = indexedDB.open("moments-publisher");
       r.onsuccess = () => resolve(r.result);
       r.onerror = () => reject(r.error);
     });
@@ -336,7 +336,7 @@ test("旧商品草稿的图片文案与隐藏字段保持不变", async ({ page 
   await expect(page.getByRole("status")).toContainText("草稿已保存");
   const stored = await page.evaluate(async () => {
     const db = await new Promise<IDBDatabase>((resolve) => {
-      const r = indexedDB.open("moments-publisher", 1);
+      const r = indexedDB.open("moments-publisher");
       r.onsuccess = () => resolve(r.result);
     });
     const value = await new Promise<any>((resolve) => {
@@ -361,7 +361,7 @@ test("旧商品草稿的图片文案与隐藏字段保持不变", async ({ page 
     };
   });
   expect(stored).toEqual({
-    version: 1,
+    version: 2,
     brand: "旧品牌",
     name: "旧商品",
     sku: "A01",
