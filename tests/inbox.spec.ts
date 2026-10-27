@@ -1,231 +1,102 @@
 import { test, expect } from "@playwright/test";
-import { createHash } from "node:crypto";
-// Mocked cloud requests must stay visible to Playwright after PWA reloads.
-// Real service-worker/offline behavior is covered separately in mvp.spec.ts.
-test.use({ serviceWorkers: "block" });
 const png = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aB1sAAAAASUVORK5CYII=",
   "base64",
 );
-const id = createHash("sha256").update(png).digest("hex");
-test("云端导入不覆盖旧记录，重试去重，凭据恢复及清除", async ({ page }) => {
-  await page.route("https://inbox.example/**", async (route) => {
-    expect(route.request().headers().authorization).toBe("Bearer read-only");
-    if (route.request().url().endsWith(`/images/${id}`))
-      await route.fulfill({ contentType: "image/png", body: png });
-    else
-      await route.fulfill({
-        json: {
-          items: [
-            {
-              id,
-              name: "云图.png",
-              type: "image/png",
-              size: png.length,
-              uploaded: new Date().toISOString(),
-            },
-          ],
-          cursor: null,
-        },
-      });
-  });
-  await page.goto("./");
-  await page.getByRole("button", { name: "＋ 新建记录", exact: true }).click();
-  await page.getByRole("textbox", { name: "朋友圈文案" }).fill("原有记录保留");
-  await page
-    .locator("input[type=file]")
-    .setInputFiles([{ name: "旧图.png", mimeType: "image/png", buffer: png }]);
-  await expect(page.locator(".photo")).toHaveCount(1);
-  await page.getByRole("button", { name: "保存记录", exact: true }).click();
-  await expect(page.getByRole("status")).toContainText("草稿已保存");
-  await page.getByRole("button", { name: "← 返回相册" }).click();
-  await page.getByRole("button", { name: "云端连接", exact: true }).click();
-  await page.getByLabel("云端服务地址").fill("https://inbox.example");
-  await page.getByLabel("查看凭据").fill("read-only");
-  await page.getByRole("button", { name: "连接 / 刷新" }).click();
-  await expect(page.locator(".card")).toHaveCount(2);
-  await page.getByRole("button", { name: "预览", exact: true }).click();
-  await expect(page.locator(".inbox-preview")).toBeVisible();
-  await page.getByRole("checkbox").check();
-  await page.getByRole("button", { name: /导入所选到本机/ }).click();
-  await expect(
-    page.getByRole("region", { name: "云端收件箱" }).getByRole("status"),
-  ).toContainText("已导入 0 条");
-  await expect(page.locator(".card")).toHaveCount(2);
-  await page.getByRole("checkbox").check();
-  await page.getByRole("button", { name: /导入所选到本机/ }).click();
-  await expect(
-    page.getByRole("region", { name: "云端收件箱" }).getByRole("status"),
-  ).toContainText("已导入 0 条");
-  await page.reload();
-  await expect(page.locator(".card")).toHaveCount(2);
-  await page.getByRole("button", { name: "云端连接", exact: true }).click();
-  await expect(page.getByLabel("查看凭据")).toHaveValue("read-only");
-  await expect(
-    page.getByRole("button", { name: "预览", exact: true }),
-  ).toBeVisible();
-  await page.getByRole("button", { name: "断开 / 清除本机凭据" }).click();
-  await expect(page.getByLabel("查看凭据")).toHaveValue("");
-  await page.reload();
-  await page.getByRole("button", { name: "云端连接", exact: true }).click();
-  await expect(page.getByLabel("查看凭据")).toHaveValue("");
-  await page
-    .getByRole("button", { name: "编辑 原有记录保留", exact: true })
-    .click();
-  await expect(page.locator(".photo img")).toHaveAttribute("alt", "旧图.png");
-  await expect(page.getByRole("textbox", { name: "朋友圈文案" })).toHaveValue(
-    "原有记录保留",
-  );
-});
-
-test("自动同步逐张保存，损坏图片不写入", async ({ page }) => {
-  const badId = "b".repeat(64);
-  await page.route("https://inbox.example/**", async (route) => {
-    if (route.request().url().includes("/images/"))
-      await route.fulfill({ contentType: "image/png", body: png });
-    else
-      await route.fulfill({
-        json: {
-          items: [id, badId].map((key) => ({
-            id: key,
-            name: key + ".png",
-            type: "image/png",
-            size: png.length,
-            uploaded: new Date().toISOString(),
-          })),
-          cursor: null,
-        },
-      });
-  });
-  await page.goto("./");
-  await page.getByRole("button", { name: "云端连接", exact: true }).click();
-  await page.getByLabel("云端服务地址").fill("https://inbox.example");
-  await page.getByLabel("查看凭据").fill("read-only");
-  await page.getByRole("button", { name: "连接 / 刷新" }).click();
-  await page.getByRole("checkbox").nth(0).check();
-  await page.getByRole("checkbox").nth(1).check();
-  await page.getByRole("button", { name: /导入所选到本机/ }).click();
-  await expect(
-    page.getByRole("region", { name: "云端收件箱" }).getByRole("status"),
-  ).toContainText("完整性校验失败");
-  await page.reload();
-  await expect(page.locator(".card")).toHaveCount(1);
-});
-
-test("云端异常响应不将凭据样式的内容带入界面或日志", async ({ page }) => {
-  const marker = "synthetic-sensitive-error-marker";
-  const messages: string[] = [];
-  page.on("console", (message) => messages.push(message.text()));
-  page.on("pageerror", (error) => messages.push(error.message));
-  await page.route("https://inbox.example/**", (route) =>
-    route.fulfill({
-      contentType: "application/json",
-      body: `Authorization: Bearer ${marker}`,
-    }),
+test.use({ serviceWorkers: "block" });
+test("取消云端入口后不使用旧凭据或请求云端，仍可手动添加图片", async ({
+  page,
+}) => {
+  let cloudRequests = 0;
+  await page.route(
+    "https://bashang-cloud-inbox.edchomerain.workers.dev/**",
+    (route) => {
+      cloudRequests++;
+      return route.abort();
+    },
   );
   await page.goto("./");
-  await page.getByRole("button", { name: "云端连接", exact: true }).click();
-  await page.getByLabel("云端服务地址").fill("https://inbox.example");
-  await page.getByLabel("查看凭据").fill("synthetic-view-credential");
-  await page.getByRole("button", { name: "连接 / 刷新" }).click();
-  await expect(page.getByRole("status")).toContainText(
-    "连接失败，请检查网络。",
-  );
-  await expect(page.locator("body")).not.toContainText(marker);
-  expect(messages.join("\n")).not.toContain(marker);
-});
-
-test("失效凭据清除，网络失败保留连接，存储失败可继续使用", async ({ page }) => {
-  let status = 200;
-  await page.route("https://inbox.example/**", async (route) => {
-    if (status === 0) return route.abort();
-    await route.fulfill({ status, json: { items: [], cursor: null } });
-  });
-  await page.goto("./");
-  await page.getByRole("button", { name: "云端连接", exact: true }).click();
-  await page.getByLabel("云端服务地址").fill("https://inbox.example");
-  await page.getByLabel("查看凭据").fill("read-only");
-  await page.getByRole("button", { name: "连接 / 刷新" }).click();
-  await expect(page.getByRole("note")).toContainText("已记住连接");
-  status = 0;
-  await page.getByRole("button", { name: "连接 / 刷新" }).click();
-  await expect(
-    page.getByRole("region", { name: "云端收件箱" }).getByRole("status"),
-  ).toContainText("连接失败");
-  expect(
-    await page.evaluate(() =>
-      localStorage.getItem("bashang:inbox-connection:v1"),
+  await page.evaluate(() =>
+    localStorage.setItem(
+      "bashang:inbox-connection:v1",
+      JSON.stringify({
+        endpoint: "https://bashang-cloud-inbox.edchomerain.workers.dev",
+        token: "synthetic-retired-read-token",
+      }),
     ),
-  ).toContain("read-only");
-  status = 401;
-  await page.getByRole("button", { name: "连接 / 刷新" }).click();
-  await expect(page.getByLabel("查看凭据")).toHaveValue("");
+  );
+  await page.reload();
+  await expect(
+    page.getByText("本机相册 · 自行添加图片", { exact: false }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "云端连接", exact: true }),
+  ).toHaveCount(0);
+  await expect(page.getByRole("region", { name: "云端收件箱" })).toHaveCount(0);
   expect(
     await page.evaluate(() =>
       localStorage.getItem("bashang:inbox-connection:v1"),
     ),
   ).toBeNull();
-  status = 200;
-  await page.evaluate(() => {
-    Storage.prototype.setItem = () => {
-      throw new DOMException("blocked", "SecurityError");
-    };
+  await page.getByRole("button", { name: "＋ 新建记录", exact: true }).click();
+  await page.locator("input[type=file]").setInputFiles({
+    name: "机器人保存图.png",
+    mimeType: "image/png",
+    buffer: png,
   });
-  await page.getByLabel("查看凭据").fill("read-only");
-  await page.getByRole("button", { name: "连接 / 刷新" }).click();
-  await expect(page.getByRole("note")).toContainText("本机存储不可用");
-  await expect(
-    page.getByRole("region", { name: "云端收件箱" }).getByRole("status"),
-  ).toContainText("云端暂无图片");
+  await expect(page.locator(".photo")).toHaveCount(1);
+  await page.getByRole("button", { name: "保存记录", exact: true }).click();
+  await page.getByRole("button", { name: "← 返回相册", exact: true }).click();
+  await expect(page.locator(".card")).toHaveCount(1);
+  await page.reload();
+  await expect(page.locator(".card")).toHaveCount(1);
+  expect(cloudRequests).toBe(0);
 });
-
-test("已记住连接时打开正式相册自动同步，重开去重，断开保留本地记录", async ({
-  page,
-}) => {
-  let available = false;
-  let downloads = 0;
-  await page.route("https://inbox.example/**", async (route) => {
-    if (route.request().url().endsWith(`/images/${id}`)) {
-      downloads++;
-      return route.fulfill({ contentType: "image/png", body: png });
-    }
-    return route.fulfill({
-      json: {
-        items: available
-          ? [
-              {
-                id,
-                name: "自动.png",
-                type: "image/png",
-                size: png.length,
-                uploaded: "2026-10-20T00:00:00Z",
-              },
-            ]
-          : [],
-        cursor: null,
-      },
-    });
-  });
+test("停用同步仍保留已导入云图、旧文案与数据库版本2", async ({ page }) => {
   await page.goto("./");
-  await page.evaluate(() =>
-    localStorage.setItem(
-      "bashang:inbox-connection:v1",
-      JSON.stringify({ endpoint: "https://inbox.example", token: "test-only" }),
-    ),
+  await page.evaluate(async (bytes) => {
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open("moments-publisher", 2);
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    const tx = db.transaction("drafts", "readwrite");
+    tx.objectStore("drafts").put({
+      id: "cloud-inbox:https://old.example:" + "a".repeat(64),
+      brand: "旧品牌",
+      name: "",
+      sku: "",
+      size: "",
+      price: "",
+      notes: "保留字段",
+      copy: "以前导入的文案",
+      status: "pending",
+      updatedAt: 123,
+      photos: [
+        {
+          id: "photo",
+          name: "旧云图.png",
+          type: "image/png",
+          bytes: new Uint8Array(bytes).buffer,
+        },
+      ],
+    });
+    await new Promise<void>((resolve, reject) => {
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+    db.close();
+  }, Array.from(png));
+  await page.reload();
+  await expect(page.locator(".card")).toHaveCount(1);
+  await page
+    .getByRole("button", { name: "编辑 以前导入的文案", exact: true })
+    .click();
+  await expect(page.getByRole("textbox", { name: "朋友圈文案" })).toHaveValue(
+    "以前导入的文案",
   );
-  available = true;
+  await expect(page.locator(".photo img")).toHaveAttribute("alt", "旧云图.png");
+  await page.getByRole("button", { name: "保存记录", exact: true }).click();
   await page.reload();
   await expect(page.locator(".card")).toHaveCount(1);
-  expect(downloads).toBe(1);
-  await page.reload();
-  await expect(page.locator(".card")).toHaveCount(1);
-  await expect(
-    page.getByText("云端图片已自动同步到相册", { exact: true }),
-  ).toBeVisible();
-  expect(downloads).toBe(1);
-  await page.getByRole("button", { name: "云端连接", exact: true }).click();
-  await page.getByRole("button", { name: "断开 / 清除本机凭据" }).click();
-  await page.reload();
-  await expect(page.locator(".card")).toHaveCount(1);
-  expect(downloads).toBe(1);
 });
