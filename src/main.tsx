@@ -1,6 +1,4 @@
-import { AutoSync } from "./AutoSync";
-import { Inbox } from "./Inbox";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { zipSync } from "fflate";
 import {
@@ -34,15 +32,16 @@ function App() {
     [loading, setLoading] = useState(true),
     [dirty, setDirty] = useState(false),
     [help, setHelp] = useState(false);
-  const reloadAlbum = useCallback(
-    async () => setDrafts(await repository.all()),
-    [],
-  );
-  const [inbox, setInbox] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null),
     copyInput = useRef<HTMLTextAreaElement>(null);
   const notify = (s: string) => setMessage(s);
   useEffect(() => {
+    // Retire only the old connection credential; album records stay intact.
+    try {
+      localStorage.removeItem("bashang:inbox-connection:v1");
+    } catch {
+      /* Storage may be unavailable. */
+    }
     repository
       .all()
       .then(setDrafts)
@@ -318,22 +317,8 @@ function App() {
               >
                 ＋ 新建记录
               </button>
-              <span className="local">◉ 本机相册 · 支持云端自动同步</span>
+              <span className="local">◉ 本机相册 · 自行添加图片</span>
             </section>
-            <button
-              className="quiet"
-              disabled={busy || loading}
-              onClick={() => setInbox(!inbox)}
-            >
-              云端连接
-            </button>
-            <AutoSync onChanged={reloadAlbum} />
-            {inbox && (
-              <Inbox
-                onClose={() => setInbox(false)}
-                onImported={async () => setDrafts(await repository.all())}
-              />
-            )}
             <section className="library">
               <div className="section-title">
                 <h2>
